@@ -1,0 +1,218 @@
+"use client";
+
+import { useState } from "react";
+
+interface WizardState {
+  step: number;
+  modelPath: string;
+  modelName: string;
+  hardwareTarget: string;
+  quantize: boolean;
+  autoFlash: boolean;
+}
+
+const steps = [
+  { id: 1, title: "Select Model", description: "Choose a model to compile" },
+  { id: 2, title: "Pre-flight Check", description: "Verify compatibility" },
+  { id: 3, title: "Hardware Target", description: "Select target hardware" },
+  { id: 4, title: "Compile", description: "Run compilation pipeline" },
+  { id: 5, title: "Deploy", description: "Flash or emulate" },
+];
+
+export function SetupWizard({ onComplete }: { onComplete?: () => void }) {
+  const [state, setState] = useState<WizardState>({
+    step: 1,
+    modelPath: "",
+    modelName: "",
+    hardwareTarget: "alloy",
+    quantize: true,
+    autoFlash: false,
+  });
+
+  const [preflightResults, setPreflightResults] = useState<any>(null);
+
+  const handleNext = () => {
+    if (state.step === 2) {
+      setPreflightResults({
+        alloy: { score: 0.95, passes: 42, warnings: 2, failures: 0 },
+        fusion: { score: 0.88, passes: 38, warnings: 4, failures: 1 },
+        element: { score: 0.72, passes: 30, warnings: 8, failures: 3 },
+      });
+    }
+    if (state.step < 5) {
+      setState((p) => ({ ...p, step: p.step + 1 }));
+    } else {
+      onComplete?.();
+    }
+  };
+
+  const handleBack = () => {
+    if (state.step > 1) {
+      setState((p) => ({ ...p, step: p.step - 1 }));
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-bg-primary/90 z-50 flex items-center justify-center">
+      <div className="bg-bg-secondary border border-border rounded-xl w-full max-w-2xl p-6 space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-accent-cyan">TPT Crucible Setup</h2>
+            <p className="text-xs text-text-secondary">Get started in 5 steps</p>
+          </div>
+          <button onClick={onComplete} className="text-text-secondary hover:text-text-primary text-sm">
+            Skip
+          </button>
+        </div>
+
+        <div className="flex gap-2">
+          {steps.map((s) => (
+            <div key={s.id} className="flex-1">
+              <div className={`h-1 rounded ${state.step >= s.id ? "bg-accent-cyan" : "bg-bg-tertiary"}`} />
+              <div className={`text-[10px] mt-1 ${state.step === s.id ? "text-accent-cyan" : "text-text-secondary"}`}>
+                {s.title}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="min-h-[300px]">
+          {state.step === 1 && (
+            <div className="space-y-4">
+              <h3 className="text-sm font-bold text-accent-amber">SELECT MODEL</h3>
+              <div className="space-y-2">
+                <button className="w-full p-3 rounded border border-border bg-bg-tertiary hover:border-accent-cyan text-left">
+                  <div className="text-sm">Local File</div>
+                  <div className="text-xs text-text-secondary">Browse for .gguf, .pt, .onnx file</div>
+                </button>
+                <button className="w-full p-3 rounded border border-border bg-bg-tertiary hover:border-accent-cyan text-left">
+                  <div className="text-sm">Spark Model Library</div>
+                  <div className="text-xs text-text-secondary">Use model from TPT Spark</div>
+                </button>
+                <button className="w-full p-3 rounded border border-border bg-bg-tertiary hover:border-accent-cyan text-left">
+                  <div className="text-sm">HuggingFace</div>
+                  <div className="text-xs text-text-secondary">Search and download from HuggingFace</div>
+                </button>
+              </div>
+              <input
+                type="text"
+                placeholder="Or paste model path/URL..."
+                className="w-full px-3 py-2 rounded bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-secondary"
+                value={state.modelPath}
+                onChange={(e) => setState((p) => ({ ...p, modelPath: e.target.value }))}
+              />
+            </div>
+          )}
+
+          {state.step === 2 && preflightResults && (
+            <div className="space-y-4">
+              <h3 className="text-sm font-bold text-accent-amber">PRE-FLIGHT CHECK</h3>
+              <div className="grid grid-cols-3 gap-3">
+                {Object.entries(preflightResults).map(([target, result]: [string, any]) => (
+                  <div key={target} className="stat-card">
+                    <div className="text-xs font-bold text-accent-cyan mb-2">{target.toUpperCase()}</div>
+                    <div className={`text-2xl font-bold ${result.score >= 0.8 ? "text-accent-green" : result.score >= 0.5 ? "text-accent-amber" : "text-accent-red"}`}>
+                      {(result.score * 100).toFixed(0)}%
+                    </div>
+                    <div className="text-[10px] text-text-secondary mt-1">
+                      {result.passes} pass, {result.warnings} warn, {result.failures} fail
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {state.step === 3 && (
+            <div className="space-y-4">
+              <h3 className="text-sm font-bold text-accent-amber">HARDWARE TARGET</h3>
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  { id: "alloy", name: "Swarm", desc: "ESP32/RP2040 mesh", cost: "$32", tier: "cheap" },
+                  { id: "fusion", name: "FPGA", desc: "Xilinx Alveo", cost: "$8,500", tier: "expensive" },
+                  { id: "element", name: "Analog", desc: "Custom PCB", cost: "$150", tier: "medium" },
+                ].map((hw) => (
+                  <button
+                    key={hw.id}
+                    onClick={() => setState((p) => ({ ...p, hardwareTarget: hw.id }))}
+                    className={`p-3 rounded border text-left transition-colors ${
+                      state.hardwareTarget === hw.id
+                        ? "border-accent-cyan bg-accent-cyan/10"
+                        : "border-border bg-bg-tertiary hover:border-accent-cyan/50"
+                    }`}
+                  >
+                    <div className="text-sm font-bold">{hw.name}</div>
+                    <div className="text-xs text-text-secondary">{hw.desc}</div>
+                    <div className="flex justify-between items-center mt-2">
+                      <span className="text-accent-amber text-xs">{hw.cost}</span>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                        hw.tier === "cheap" ? "bg-accent-green/20 text-accent-green" :
+                        hw.tier === "medium" ? "bg-accent-amber/20 text-accent-amber" :
+                        "bg-accent-red/20 text-accent-red"
+                      }`}>
+                        {hw.tier}
+                      </span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={state.quantize} onChange={(e) => setState((p) => ({ ...p, quantize: e.target.checked }))} className="accent-accent-cyan" />
+                Auto-quantize for target hardware
+              </label>
+            </div>
+          )}
+
+          {state.step === 4 && (
+            <div className="space-y-4">
+              <h3 className="text-sm font-bold text-accent-amber">COMPILING</h3>
+              <div className="space-y-3">
+                {["Ingesting model", "Running optimizations", "Pre-flight check", "Generating artifacts"].map((task, i) => (
+                  <div key={task} className="flex items-center gap-3">
+                    <div className={`w-4 h-4 rounded-full ${i < 3 ? "bg-accent-green" : "bg-accent-cyan animate-pulse"}`} />
+                    <span className="text-sm">{task}</span>
+                    <span className="text-xs text-text-secondary ml-auto">
+                      {i < 3 ? "Done" : "Running..."}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {state.step === 5 && (
+            <div className="space-y-4">
+              <h3 className="text-sm font-bold text-accent-amber">DEPLOY</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <button className="p-4 rounded border border-accent-green bg-accent-green/10 hover:bg-accent-green/20 text-left">
+                  <div className="text-sm font-bold text-accent-green">Flash Hardware</div>
+                  <div className="text-xs text-text-secondary mt-1">Deploy to connected devices via USB/WiFi</div>
+                </button>
+                <button className="p-4 rounded border border-accent-cyan bg-accent-cyan/10 hover:bg-accent-cyan/20 text-left">
+                  <div className="text-sm font-bold text-accent-cyan">Launch SiL Emulator</div>
+                  <div className="text-xs text-text-secondary mt-1">Test in Software-in-the-Loop environment</div>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="flex justify-between">
+          <button
+            onClick={handleBack}
+            disabled={state.step === 1}
+            className="px-4 py-2 rounded bg-bg-tertiary text-text-secondary hover:text-text-primary disabled:opacity-30 text-sm"
+          >
+            Back
+          </button>
+          <button
+            onClick={handleNext}
+            className="px-4 py-2 rounded bg-accent-cyan text-bg-primary font-bold text-sm"
+          >
+            {state.step === 5 ? "Finish" : "Next"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

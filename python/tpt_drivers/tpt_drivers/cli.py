@@ -34,14 +34,16 @@ def main() -> None:
         if not drivers:
             print("No drivers installed.")
         for d in drivers:
-            print(f"  {d.name} v{d.version} ({d.hardware_type}) — {d.description}")
+            badge = " [verified]" if d.verified else ""
+            print(f"  {d.name} v{d.version} ({d.hardware_type}){badge} — {d.description}")
 
     elif args.command == "search":
         results = registry.search(args.query)
         if not results:
             print(f"No drivers found for '{args.query}'")
         for d in results:
-            print(f"  {d.name} v{d.version} ({d.hardware_type}) — {d.description}")
+            badge = " [verified]" if d.verified else ""
+            print(f"  {d.name} v{d.version} ({d.hardware_type}){badge} — {d.description}")
 
     elif args.command == "install":
         manifest = DriverManifest.from_dict(json.loads(args.manifest.read_text()))

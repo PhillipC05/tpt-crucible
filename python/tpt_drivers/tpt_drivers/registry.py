@@ -8,6 +8,39 @@ from typing import Any
 
 from .driver import DriverManifest
 
+# Path to the TPT public key bundled with the SDK (Ed25519, PEM format).
+_PUBLIC_KEY_PATH = Path(__file__).parent / "keys" / "tpt_public.pem"
+
+
+def _verify_signature(manifest: DriverManifest) -> bool:
+    """Return True if the manifest's Ed25519 signature is valid, False otherwise."""
+    if not manifest.signature:
+        return False
+    try:
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+        from cryptography.hazmat.primitives.serialization import load_pem_public_key
+        from cryptography.exceptions import InvalidSignature
+        import hashlib
+
+        pem = _PUBLIC_KEY_PATH.read_bytes()
+        public_key: Ed25519PublicKey = load_pem_public_key(pem)  # type: ignore[assignment]
+
+        # Signature covers the canonical JSON of to_dict() with verification fields zeroed
+        canonical = dict(manifest.to_dict())
+        canonical["verified"] = False
+        canonical["signature"] = ""
+        canonical["certified_at"] = ""
+        canonical["certification_pipeline"] = ""
+        message = json.dumps(canonical, sort_keys=True, separators=(",", ":")).encode()
+
+        sig_bytes = bytes.fromhex(manifest.signature)
+        public_key.verify(sig_bytes, message)
+        return True
+    except InvalidSignature:
+        return False
+    except Exception:
+        return False
+
 
 @dataclass
 class RegistryEntry:
@@ -15,6 +48,7 @@ class RegistryEntry:
     version: str
     hardware_type: str
     description: str
+    verified: bool = False
     local_path: Path | None = None
 
 
@@ -38,7 +72,15 @@ class DriverRegistry:
     def _save_index(self) -> None:
         self.index_path.write_text(json.dumps(self.index, indent=2))
 
-    def install_driver(self, manifest: DriverManifest, source_path: Path | None = None) -> Path:
+    def install_driver(self, manifest: DriverManifest, source_path: Path | None = None,
+                        verify_signature: bool = True) -> Path:
+        if manifest.verified and verify_signature:
+            if not _verify_signature(manifest):
+                raise ValueError(
+                    f"Driver '{manifest.name}' claims to be verified but its signature is invalid. "
+                    "Install aborted. Pass verify_signature=False to override."
+                )
+
         driver_dir = self.registry_dir / manifest.name / manifest.version
         driver_dir.mkdir(parents=True, exist_ok=True)
 
@@ -54,6 +96,7 @@ class DriverRegistry:
             "version": manifest.version,
             "hardware_type": manifest.hardware_type,
             "description": manifest.description,
+            "verified": manifest.verified,
             "path": str(driver_dir),
         }
         self._save_index()
@@ -75,6 +118,7 @@ class DriverRegistry:
                 version=data["version"],
                 hardware_type=data["hardware_type"],
                 description=data["description"],
+                verified=data.get("verified", False),
                 local_path=Path(data["path"]) if Path(data["path"]).exists() else None,
             )
             for name, data in self.index.items()

@@ -133,6 +133,27 @@
 - [ ] Benchmark: measure overlay compile time vs. full resynthesis on same model
 - [ ] Observer UI: show compile mode (overlay / full synthesis) and estimated time before starting
 
+### TPT Fusion — Fast Model Switching (Overlay Hot-Swap)
+- [ ] Implement hot-swap protocol: load new `.fusecfg` + weight binary into running overlay without re-flashing the bitstream
+- [ ] DMA weight loader: stream model weights from host NVMe → FPGA HBM over PCIe at full bandwidth; target <60s switch time for any model that fits the overlay config
+- [ ] Implement model config cache in HBM: reserve a fixed HBM region per slot (configurable N slots); track slot occupancy + LRU eviction when all slots full
+- [ ] HBM cache sizing: auto-calculate max slots from available HBM minus model weight size; expose `--cache-slots N` override in CLI
+- [ ] CLI: `tpt-fusion load <model.fusecfg>` — hot-load weights to a running overlay; no bitstream flash required
+- [ ] CLI: `tpt-fusion cache list` — show HBM slot occupancy, model name, size, last-used timestamp
+- [ ] CLI: `tpt-fusion cache evict <model>` — manually free an HBM slot
+- [ ] Observer UI: model switcher panel — list of loaded configs in HBM cache with slot indicators; one-click switch; estimated load time shown for uncached models
+- [ ] Define overlay compatibility check: verify `.fusecfg` datapath width and layer count match the installed overlay before attempting load; clear error if incompatible
+- [ ] Benchmark: measure end-to-end model switch time (unload → transfer → load → first token) on Alveo U250
+
+### TPT Fusion — Multi-Overlay Management
+- [ ] Define overlay manifest format: each overlay bitstream tagged with supported datapath (dense/MoE), precision (INT4/INT8), max layer count, max model size
+- [ ] Ship at least two reference overlays for Alveo U250: `dense-int4` (covers standard transformer models) and `moe-int4` (covers MoE routing with expert gating)
+- [ ] Implement overlay switcher: detect which overlay is currently flashed; if incoming `.fusecfg` requires a different overlay type, auto-flash the correct one (~5–10 min, user notified)
+- [ ] Cache current overlay type in a local state file so `tpt-fusion load` can skip the compatibility check on repeat invocations
+- [ ] Observer UI: show active overlay type + compatible model families in the sidebar; warn before auto-switching overlay
+- [ ] CLI: `tpt-fusion overlay list` — show available overlays for the connected board
+- [ ] CLI: `tpt-fusion overlay flash <overlay-name>` — manually flash a specific overlay
+
 ### Phase 2 Milestone
 - [ ] **DEMO:** Select Xilinx Alveo in UI → TPT Fusion outputs bitstream → flash board → runs quantized AI model using HBM
 
@@ -141,19 +162,19 @@
 ## Automation & Pipeline Intelligence
 
 ### Toolchain Error Handling
-- [ ] Build error interception layer in Fusion tool wrappers (Yosys, Nextpnr): parse stderr, match against pattern catalog, emit structured error type
-- [ ] Build error catalog: ~30 common Yosys/Nextpnr failure patterns (timing closure, missing module, resource overflow) → plain-English messages + suggested action
-- [ ] Build equivalent error catalog for Xyce/ngspice (Element) and PlatformIO (Alloy)
+- [x] Build error interception layer in Fusion tool wrappers (Yosys, Nextpnr): parse stderr, match against pattern catalog, emit structured error type
+- [x] Build error catalog: ~30 common Yosys/Nextpnr failure patterns (timing closure, missing module, resource overflow) → plain-English messages + suggested action
+- [x] Build equivalent error catalog for Xyce/ngspice (Element) and PlatformIO (Alloy)
 - [ ] Observer UI: show structured error message + suggested action; "raw output" toggle for advanced users
 - [ ] LLM fallback: if error doesn't match catalog and LLM provider is configured, send full error + context → show "AI Diagnosis" panel in Observer
 - [ ] CLI: structured errors also printed to stderr in JSON format for CI/CD consumption
 
 ### `tpt-doctor` Toolchain Verifier (`python/tpt_catalyst/doctor.py`)
-- [ ] Detect and version-check all required external tools: Yosys, Nextpnr, PlatformIO, Xyce/ngspice, Verilator
-- [ ] Report: installed / wrong version / missing, with platform-specific install instructions per tool
+- [x] Detect and version-check all required external tools: Yosys, Nextpnr, PlatformIO, Xyce/ngspice, Verilator
+- [x] Report: installed / wrong version / missing, with platform-specific install instructions per tool
 - [ ] Run end-to-end smoke test: compile a minimal 2-layer model through each available hardware path
-- [ ] Output: green/amber/red per tool; overall readiness score
-- [ ] CLI: `tpt-doctor` (check all) and `tpt-doctor --target alloy|fusion|element`
+- [x] Output: green/amber/red per tool; overall readiness score
+- [x] CLI: `tpt-doctor` (check all) and `tpt-doctor --target alloy|fusion|element`
 - [ ] Integrate into first-run wizard: auto-run `tpt-doctor` on first Observer launch, show results inline
 
 ### Quantization Auto-Search Loop (Catalyst)
@@ -164,10 +185,10 @@
 - [ ] Observer UI: show per-layer quantization map (INT4 = green, INT8 = amber, float = red) after search completes
 
 ### Streaming Pre-flight + One-Click Auto-Fix
-- [ ] Refactor pre-flight graph scan to emit results as a stream (channel/iterator) rather than a blocking report
+- [x] Refactor pre-flight graph scan to emit results as a stream (channel/iterator) rather than a blocking report
 - [ ] Go backend: expose pre-flight stream as a WebSocket event feed
 - [ ] Observer UI: operators flash pass/warn/fail in the Visual IR Graph Editor as they're checked
-- [ ] Add `fix` action to each pre-flight warning: deterministic substitutions (Flash Attention → MHA, SwiGLU → GELU, RMSNorm → LayerNorm) applied on click
+- [x] Add `fix` action to each pre-flight warning: deterministic substitutions (Flash Attention → MHA, SwiGLU → GELU, RMSNorm → LayerNorm) applied on click
 - [ ] Show diff preview for ambiguous substitutions; require confirmation before apply
 - [ ] Export fixed IR back to `.tptir` automatically after applying fixes
 
@@ -203,8 +224,8 @@
 - [ ] CLI: `tpt-element generate-dataset --runs 10000 --worker-url <url>`
 
 ### HuggingFace Model Search in Wizard (`python/tpt_catalyst/hf_search.py`)
-- [ ] Integrate `huggingface_hub` search API: search by name/tag, filter by model size, quantization type, task
-- [ ] Display results in Observer wizard step 1: model cards with size, quant type, license, download size
+- [x] Integrate `huggingface_hub` search API: search by name/tag, filter by model size, quantization type, task
+- [x] Display results in Observer wizard step 1: model cards with size, quant type, license, download size
 - [ ] One-click download: fetch GGUF or SafeTensors to local model directory (shared with Spark layout)
 - [ ] Show download progress in wizard; auto-advance to step 2 when complete
 - [ ] Cache model index for offline use; refresh on demand
@@ -292,15 +313,15 @@
 - [x] Implement FPGA telemetry adapter (memory bandwidth utilization)
 - [x] Implement Analog telemetry adapter (thermal drift over time)
 - [x] Implement Swarm telemetry adapter (per-node latency)
-- [ ] Set up React + Next.js frontend
-- [ ] Implement Tailwind CSS "industrial blueprint" dark theme (dark grays, neon cyan/amber, monospaced data fonts)
-- [ ] Build unified telemetry dashboard view (all hardware types in one UI)
-- [ ] Integrate Three.js / React Three Fiber for 3D swarm topology visualizer (nodes + wires)
+- [x] Set up React + Next.js frontend
+- [x] Implement Tailwind CSS "industrial blueprint" dark theme (dark grays, neon cyan/amber, monospaced data fonts)
+- [x] Build unified telemetry dashboard view (all hardware types in one UI)
+- [x] Integrate Three.js / React Three Fiber for 3D swarm topology visualizer (nodes + wires)
 - [ ] Integrate Three.js / React Three Fiber for PCB layout visualizer (Analog module)
-- [ ] Build tokens-per-second live chart
-- [ ] Build memory bandwidth utilization live chart (FPGA)
-- [ ] Build thermal drift live chart (Analog)
-- [ ] Build node-latency heatmap (Swarm)
+- [x] Build tokens-per-second live chart
+- [x] Build memory bandwidth utilization live chart (FPGA)
+- [x] Build thermal drift live chart (Analog)
+- [x] Build node-latency heatmap (Swarm)
 
 ### Phase 4 Milestone
 - [ ] **DEMO:** Single Observer dashboard shows live telemetry from FPGA, Analog, and Swarm hardware simultaneously
@@ -331,12 +352,12 @@
 
 ## TPT Observer — Visual TPT-IR Graph Editor
 
-- [ ] Integrate React Flow into Observer Next.js frontend
-- [ ] Render TPT-IR as interactive DAG (nodes = operators, edges = tensor shapes/dtypes)
-- [ ] Show pre-flight compatibility warnings as inline node badges
+- [x] Integrate React Flow into Observer Next.js frontend
+- [x] Render TPT-IR as interactive DAG (nodes = operators, edges = tensor shapes/dtypes)
+- [x] Show pre-flight compatibility warnings as inline node badges
 - [ ] Allow operator swap (right-click → substitute with compatible op)
 - [ ] Allow quantization pass insertion between nodes
-- [ ] Allow layer-to-hardware tagging for Mosaic hybrid deployment
+- [x] Allow layer-to-hardware tagging for Mosaic hybrid deployment
 - [ ] Export modified IR back to `.tptir` file
 
 ---
@@ -345,7 +366,7 @@
 
 - [x] Define `.tptlog` binary format (timestamped telemetry stream + inference metadata)
 - [x] Go backend: record all active telemetry streams to `.tptlog` on user request
-- [ ] Observer UI: replay scrub bar with per-token step navigation (pause/play/step)
+- [x] Observer UI: replay scrub bar with per-token step navigation (pause/play/step)
 - [ ] Overlay mode: compare two `.tptlog` files side-by-side (e.g., before/after firmware update)
 - [ ] Emit replay telemetry through same Observer chart components as live data
 
@@ -354,7 +375,7 @@
 ## TPT Spark Integration
 
 - [x] Detect TPT Spark model directory at startup; expose as model source in Catalyst UI
-- [ ] Catalyst CLI: accept Spark model ID as input (`tpt-catalyst ingest --spark-model llama3-8b`)
+- [x] Catalyst CLI: accept Spark model ID as input (`tpt-catalyst ingest --spark-model llama3-8b`)
 - [x] Define IPC/file-based protocol for Spark → Crucible model handoff
 - [ ] Observer: pull Spark tokens/sec baseline from local JSON conversation history
 - [ ] Observer: display side-by-side benchmark — Spark (GPU/CPU) vs. Crucible (custom hardware)
@@ -377,7 +398,7 @@
 - [x] Write pre-flight report into `compat/preflight.json` in the package
 - [x] Write quantization profile into `quant/quant_profile.json` in the package
 - [x] Write Mosaic partition plan into `mosaic/partition.json` in the package
-- [ ] Observer: display `.tptpkg` manifest metadata (model name, targets, checksums, readiness score) in UI
+- [x] Observer: display `.tptpkg` manifest metadata (model name, targets, checksums, readiness score) in UI
 
 ---
 
@@ -390,7 +411,7 @@
 - [x] Build community registry index format (TOML manifest, versioned, signed)
 - [x] CLI: `tpt-drivers install <driver-name>` — downloads and caches driver from registry
 - [x] CLI: `tpt-drivers list` — show installed drivers; `tpt-drivers search <query>`
-- [ ] Implement recipe system: `tpt-drivers install tinyllama-esp32-16node` pulls a verified topology + driver bundle
+- [x] Implement recipe system: `tpt-drivers install tinyllama-esp32-16node` pulls a verified topology + driver bundle
 - [ ] Write driver authoring docs + driver SDK template repo
 
 ### Hardware Auto-Detection (`drivers/probe/`)
@@ -417,7 +438,7 @@
 
 - [x] Implement content-addressed cache: per-operator hash keyed on TPT-IR subgraph
 - [x] Store cache in `.tpt-cache/` directory adjacent to working `.tptpkg`
-- [ ] CLI flag: `tpt-catalyst pack --incremental` - skip operators whose hash matches cache
+- [x] CLI flag: `tpt-catalyst pack --incremental` - skip operators whose hash matches cache
 - [ ] Observer UI: show per-layer cache hit/miss indicators during compilation
 - [x] Cache invalidation: bust cache for a layer when its inputs, weights, or target hardware change
 
@@ -428,19 +449,19 @@
 - [x] Implement `TPTProbeCallback` for PyTorch: attaches to all layers, records min/max activations, weight histograms, gradient norms per epoch
 - [ ] Implement equivalent JAX/Flax hook
 - [x] Output: `model.tptprofile` JSON (per-layer activation stats + weight distributions)
-- [ ] Catalyst integration: if `.tptprofile` exists alongside model, use it to set per-layer quantization clamps
-- [ ] Auto-Quantization Advisor: prefer `.tptprofile` data over static weight analysis when available
-- [ ] Add `.tptprofile` reference to `.tptpkg` manifest if profile was used during compilation
+- [x] Catalyst integration: if `.tptprofile` exists alongside model, use it to set per-layer quantization clamps
+- [x] Auto-Quantization Advisor: prefer `.tptprofile` data over static weight analysis when available
+- [x] Add `.tptprofile` reference to `.tptpkg` manifest if profile was used during compilation
 - [ ] Publish `tpt-train` as a standalone pip package (`pip install tpt-train`)
 
 ---
 
 ## Cloud Synthesis Worker — Self-Hostable (`cloud/synthesis-worker/`)
 
-- [ ] Go worker service: accept `.tptpkg` upload, run Yosys + Nextpnr, return updated `.tptpkg` with bitstream
-- [ ] Redis-based job queue (stateless workers, horizontally scalable)
+- [x] Go worker service: accept `.tptpkg` upload, run Yosys + Nextpnr, return updated `.tptpkg` with bitstream
+- [x] Redis-based job queue (stateless workers, horizontally scalable)
 - [ ] Observer UI: "Offload synthesis to worker" toggle (shown only when a worker URL is configured in settings)
-- [ ] Dockerfile + Docker Compose for single-node deployment
+- [x] Dockerfile + Docker Compose for single-node deployment
 - [ ] Worker deployment docs
 
 ---
@@ -458,9 +479,9 @@
 
 ## AI Driver Generator (`drivers/ai-gen/`)
 
-- [ ] Implement PDF/URL datasheet text extractor (PyMuPDF for PDF, BeautifulSoup for URLs)
-- [ ] Define structured LLM extraction prompt: extract pinout, memory map, peripheral specs, flash protocol, clock/timing
-- [ ] LLM output → driver manifest TOML + Rust trait skeleton + synthesis constraints + flash protocol stub
+- [x] Implement PDF/URL datasheet text extractor (PyMuPDF for PDF, BeautifulSoup for URLs)
+- [x] Define structured LLM extraction prompt: extract pinout, memory map, peripheral specs, flash protocol, clock/timing
+- [x] LLM output → driver manifest TOML + Rust trait skeleton + synthesis constraints + flash protocol stub
 - [ ] Observer UI: diff-style preview of generated driver; user edits and approves
 - [ ] Run SDK schema validator on generated driver before allowing publish to registry
 - [ ] "Publish to Registry" flow from the review screen
@@ -470,8 +491,8 @@
 
 ## AI Swarm Topology Advisor (`alloy/ai-topology/`)
 
-- [ ] Define input schema: TPT-IR profile (layer count, bandwidth matrix) + user constraints (node count, latency budget, power budget, form factor)
-- [ ] Implement LLM-based topology recommendation (initial approach)
+- [x] Define input schema: TPT-IR profile (layer count, bandwidth matrix) + user constraints (node count, latency budget, power budget, form factor)
+- [x] Implement LLM-based topology recommendation (initial approach)
 - [ ] Define training data schema: (model profile + constraints + topology) → measured SiL performance
 - [ ] Accumulate SiL run results as training data automatically
 - [ ] Train ML model on accumulated SiL data when dataset is large enough; swap in as default
@@ -482,10 +503,10 @@
 
 ## AI RTL Assistant (`fusion/ai-rtl/`)
 
-- [ ] Implement compute pattern extractor from TPT-IR (layer types, tensor shapes, dtypes, repetition count)
-- [ ] Build LLM prompt template: compute pattern + board constraints → candidate Verilog MAC array
-- [ ] Implement static timing pre-check on generated Verilog (wrap OpenTimer or `yosys stat`)
-- [ ] Flag timing violations with suggested datapath modifications before full synthesis
+- [x] Implement compute pattern extractor from TPT-IR (layer types, tensor shapes, dtypes, repetition count)
+- [x] Build LLM prompt template: compute pattern + board constraints → candidate Verilog MAC array
+- [x] Implement static timing pre-check on generated Verilog (wrap OpenTimer or `yosys stat`)
+- [x] Flag timing violations with suggested datapath modifications before full synthesis
 - [ ] Observer UI: generated RTL shown in Visual IR Editor for review before entering Fusion pipeline
 - [ ] Fallback: if no LLM configured, Fusion uses existing Amaranth HDL template generation (no regression)
 
@@ -527,22 +548,22 @@
 
 ## First-Run Guided Wizard (Observer UI)
 
-- [ ] Implement 5-step wizard flow in Observer shown on first launch
-- [ ] Step 1: model picker (file, Spark model selector, HuggingFace URL)
-- [ ] Step 2: auto-run pre-flight check; show traffic-light results per hardware type
-- [ ] Step 3: hardware picker with cost estimates + BOM previews; "no hardware yet" path → recommend ESP32 swarm + SiL
-- [ ] Step 4: compilation with auto-quantization on by default
-- [ ] Step 5: "Flash or Emulate?" — offer flash if USB device detected, otherwise launch SiL
+- [x] Implement 5-step wizard flow in Observer shown on first launch
+- [x] Step 1: model picker (file, Spark model selector, HuggingFace URL)
+- [x] Step 2: auto-run pre-flight check; show traffic-light results per hardware type
+- [x] Step 3: hardware picker with cost estimates + BOM previews; "no hardware yet" path → recommend ESP32 swarm + SiL
+- [x] Step 4: compilation with auto-quantization on by default
+- [x] Step 5: "Flash or Emulate?" — offer flash if USB device detected, otherwise launch SiL
 - [ ] Save wizard state; make it skippable and re-launchable from help menu
 
 ---
 
 ## Model Accuracy Validator (`validator/`)
 
-- [ ] Define standardized prompt suite for accuracy testing (diverse token types, edge cases)
-- [ ] Implement reference backend connector: Spark IPC or local CPU inference
-- [ ] Implement hardware output connector: reads inference results from live deployment or SiL
-- [ ] Compute token-level similarity + perplexity delta between hardware and reference outputs
+- [x] Define standardized prompt suite for accuracy testing (diverse token types, edge cases)
+- [x] Implement reference backend connector: Spark IPC or local CPU inference
+- [x] Implement hardware output connector: reads inference results from live deployment or SiL
+- [x] Compute token-level similarity + perplexity delta between hardware and reference outputs
 - [ ] For analog: report per-layer output voltage vs. SPICE-expected value
 - [ ] Observer UI: accuracy dashboard tab with per-layer green/amber/red indicators
 - [ ] CLI: `tpt-validate <model.tptpkg> --reference spark --hardware alloy`
@@ -551,9 +572,9 @@
 
 ## OTA Update System (`alloy/ota/`)
 
-- [ ] Implement per-node firmware binary diff between new and previous `.tptpkg`
-- [ ] Generate patch manifest: list of node IDs with changed binaries
-- [ ] OTA flashing: push firmware only to changed nodes; unchanged nodes remain live during update
+- [x] Implement per-node firmware binary diff between new and previous `.tptpkg`
+- [x] Generate patch manifest: list of node IDs with changed binaries
+- [x] OTA flashing: push firmware only to changed nodes; unchanged nodes remain live during update
 - [ ] Store previous firmware in `targets/alloy/firmware/prev/` inside `.tptpkg` for rollback
 - [ ] Observer UI: OTA progress heatmap — per-node status (pending / flashing / done / failed)
 - [ ] One-click rollback from Observer UI
@@ -573,10 +594,10 @@
 
 ## Hardware Diagnostics Mode
 
-- [ ] Implement diagnostic test pattern runner (known-good inputs + expected outputs per hardware type)
-- [ ] **Alloy diagnostics**: ping each node, measure RTT latency, check firmware version, report CPU temp
-- [ ] **Fusion diagnostics**: run small test inference through FPGA; verify output vs. golden reference; check HBM bandwidth
-- [ ] **Element diagnostics**: inject low-amplitude test signal; compare output to SPICE-predicted response; flag components outside tolerance
+- [x] Implement diagnostic test pattern runner (known-good inputs + expected outputs per hardware type)
+- [x] **Alloy diagnostics**: ping each node, measure RTT latency, check firmware version, report CPU temp
+- [x] **Fusion diagnostics**: run small test inference through FPGA; verify output vs. golden reference; check HBM bandwidth
+- [x] **Element diagnostics**: inject low-amplitude test signal; compare output to SPICE-predicted response; flag components outside tolerance
 - [ ] Observer UI: hardware health heatmap — node grid (swarm), block diagram (FPGA), circuit diagram (analog), color-coded by health
 - [ ] CLI: `tpt-diagnose <model.tptpkg> --hardware alloy|fusion|element`
 
@@ -584,11 +605,11 @@
 
 ## Hardware-in-the-Loop Training (`tpt-train/hardware_aware.py`)
 
-- [ ] Design `TPTHardwareAwareCallback`: accepts hardware telemetry + CPU reference outputs, computes per-layer deviation profile
-- [ ] Implement deviation-to-loss conversion: map per-layer output errors to a regularization term
-- [ ] Wire callback into PyTorch training loop (runs after N steps when hardware telemetry is available)
-- [ ] Validator integration: `tpt-validate` outputs a `.tptdeviation` file consumable by the callback
-- [ ] Document workflow: train → deploy to SiL/hardware → collect deviations → fine-tune → recompile
+- [x] Design `TPTHardwareAwareCallback`: accepts hardware telemetry + CPU reference outputs, computes per-layer deviation profile
+- [x] Implement deviation-to-loss conversion: map per-layer output errors to a regularization term
+- [x] Wire callback into PyTorch training loop (runs after N steps when hardware telemetry is available)
+- [x] Validator integration: `tpt-validate` outputs a `.tptdeviation` file consumable by the callback
+- [x] Document workflow: train → deploy to SiL/hardware → collect deviations → fine-tune → recompile
 - [ ] Test: measure accuracy delta before/after hardware-aware fine-tuning on TinyLlama + 16× ESP32 SiL
 
 ---
@@ -604,10 +625,10 @@
 - [ ] Target: <60 seconds from page load to running SiL visualization for a quantized TinyLlama
 
 ### Pre-compiled Package Marketplace (`tpt-packages/`)
-- [ ] Define package registry manifest format (JSON index: model ID, hardware target, accuracy delta, SHA-256, download URL)
-- [ ] CLI: `tpt get <package-name>` — downloads and verifies `.tptpkg` from registry
-- [ ] CLI: `tpt packages list` — browse available pre-compiled packages
-- [ ] Bootstrap registry with: TinyLlama Q4 × 16× ESP32, TinyLlama Q8 × Alveo
+- [x] Define package registry manifest format (JSON index: model ID, hardware target, accuracy delta, SHA-256, download URL)
+- [x] CLI: `tpt get <package-name>` — downloads and verifies `.tptpkg` from registry
+- [x] CLI: `tpt packages list` — browse available pre-compiled packages
+- [x] Bootstrap registry with: TinyLlama Q4 × 16× ESP32, TinyLlama Q8 × Alveo
 - [ ] Observer UI: "Get pre-compiled package" option on target selection screen
 - [ ] Publish registry as static files on GitHub Releases (no server required)
 
@@ -619,11 +640,27 @@
 - [ ] Publish KiCad source + Gerbers in repo; link from Observer first-run wizard
 
 ### One-Line Bootstrap / Developer Experience
-- [ ] Restructure Python packaging: `pip install tpt-crucible` (base, SiL-only) + `[fpga]` and `[swarm]` extras
-- [ ] First-run detection: if `[fpga]` extra not installed but FPGA target selected, show install instructions + SiL fallback offer
+- [x] Restructure Python packaging: `pip install tpt-crucible` (base, SiL-only) + `[fpga]` and `[swarm]` extras
+- [x] First-run detection: if `[fpga]` extra not installed but FPGA target selected, show install instructions + SiL fallback offer
 - [ ] Bundle `tpt-catalyst` and `tpt-alloy` WASM binaries in the pip package for offline browser demo
-- [ ] Write 5-minute quickstart: `pip install tpt-crucible` → download TinyLlama → SiL run → see tokens/sec
+- [x] Write 5-minute quickstart: `pip install tpt-crucible` → download TinyLlama → SiL run → see tokens/sec
 - [ ] Test install experience on clean Windows, macOS, and Ubuntu VMs
+
+### Docker-First Distribution (Setup Friction Reduction)
+- [x] Build `tpt-crucible/synthesis` Docker image: Yosys + Nextpnr + MLIR + full toolchain pre-installed; no host toolchain required
+- [x] Build `tpt-crucible/runtime` Docker image: minimal XRT + Crucible runtime for machines with a physical FPGA card
+- [ ] Write XRT one-line kernel module installer script (`install-xrt.sh`): handles Ubuntu version detection, kernel header install, XRT deb install, card detection verify; target <15 min on a clean Ubuntu LTS
+- [ ] Publish both images to Docker Hub; version-pin to matching XRT + Yosys releases to eliminate version mismatch errors
+- [ ] Update `tpt-doctor` to detect Docker-based toolchain as valid alternative to host-installed tools
+- [ ] Observer UI: "Run synthesis in Docker" toggle — shown when Docker is detected but host toolchain is absent; routes synthesis jobs through the container transparently
+- [ ] Document Docker path as the recommended setup route in quickstart guide
+
+### Windows-Native Support
+- [ ] Bundle pre-compiled Yosys and Nextpnr Windows binaries in the `[fpga]` pip extra — eliminate build-from-source requirement on Windows
+- [ ] Implement WSL2 auto-setup helper: detect WSL2 availability, install Ubuntu 22.04 distro, configure XRT inside WSL2, verify card passthrough; one command from PowerShell
+- [ ] Test and document Alveo U250 XRT passthrough on Windows 11 via WSL2
+- [ ] Write Windows-specific quickstart guide covering Docker Desktop path as primary and WSL2 as alternative
+- [ ] CI: add Windows install smoke test (pip install + tpt-doctor) to CI pipeline
 
 ---
 
@@ -635,3 +672,137 @@
 - [ ] Set up docs site (architecture overview, module API references)
 - [ ] Define versioning and release strategy (open-core vs. proprietary layers)
 - [ ] License: choose open-core licensing (e.g., Apache 2.0 for compilers, commercial for optimization layers)
+
+---
+
+## Gap Features — Competitive Differentiation
+
+### Gap 1: TPT Silicon — Compute-in-Memory Backend (`python/tpt_silicon/`)
+
+No general-purpose compiler exists for arbitrary model → CIM. Targets Taalas HC1, Axelera Europa, D-Matrix DIMC.
+
+- [x] Create `python/tpt_silicon/` module (pyproject.toml + package scaffold)
+- [x] `weight_packer.py` — `CimWeightPacker`: quantize + tile weight tensors into memory array row format (row = single MAC unit); `PackedArray` dataclass; `serialize_array()` → bytes
+- [x] `array_layout.py` — `CimArrayLayout`: map TPT-IR ops to array dimensions; tile large matmuls across multiple physical arrays; `LayoutConfig` dataclass (array_rows, array_cols, bit_precision)
+- [x] `bitline.py` — `BitlineOpGenerator`: emit bitline read/accumulate/ADC-skip op sequences as low-level op list; handle partial-row masking for sparse tiles
+- [ ] `package_writer.py` — `write_silicon_artifacts()`: write `targets/silicon/` into `.tptpkg` (weight_arrays.bin, layout.json, config.json)
+- [ ] `cli.py` — `tpt-silicon compile <model.tptir> --board <name> [--precision 4|8]`
+- [ ] Add `HardwareTarget.CIM` to `python/tpt_mosaic/tpt_mosaic/partition.py`
+- [ ] Dispatch CIM target in `python/tpt_mosaic/tpt_mosaic/orchestrator.py`
+- [ ] Add CIM column to operator support matrix in `python/tpt_catalyst/tpt_catalyst/compat.py`
+- [ ] Add `"cim"` hardware_type + `CimArraySpec` dataclass to `python/tpt_drivers/tpt_drivers/driver.py`
+- [ ] Add `"silicon"` to target name set in `crates/tpt-catalyst/src/package.rs`
+- [ ] Observer UI: CIM target card in hardware picker with array utilization metric
+
+### Gap 2: TPT Pulse — Neuromorphic / ANN→SNN Compiler (`python/tpt_pulse/`)
+
+No production open-source ANN→SNN compiler exists. Targets Intel Loihi (lava-nc) and BrainScaleS (PyNN).
+
+- [ ] Create `python/tpt_pulse/` module scaffold
+- [ ] `lif_node.py` — `LifNeuron` dataclass (threshold, decay, reset_mode: subtract|zero); `SnnGraph` (nodes + spike_edges)
+- [ ] `converter.py` — `SnnConverter`: walk TPT-IR ops; replace ReLU activations with LIF nodes; normalize thresholds via `.tptprofile` max-activation if available, else weight-norm heuristic
+- [ ] `lava_export.py` — `LavaExporter`: write `targets/pulse/lava_network.py` (Intel Loihi lava-nc API)
+- [ ] `pynn_export.py` — `PynnExporter`: write `targets/pulse/pynn_network.py` (BrainScaleS/SpiNNaker via PyNN)
+- [ ] `sim_export.py` — `SimExporter`: pure-Python LIF simulation for SiL testing without neuromorphic hardware
+- [ ] `package_writer.py` — write `targets/pulse/` (snn_graph.json + backend export + accuracy_estimate.json)
+- [ ] `cli.py` — `tpt-pulse convert <model.tptir> --target loihi|brainscales|sim`
+- [ ] Add `HardwareTarget.NEUROMORPHIC` to partition.py; dispatch in orchestrator.py
+- [ ] Add `"neuromorphic"` hardware_type + `NeuromorphicSpec` to driver.py
+- [ ] Add neuromorphic column to compat.py operator support matrix
+- [ ] Observer UI: neuromorphic target card; show spike rate + accuracy estimate metrics
+
+### Gap 3: Carbon-Aware Compilation
+
+No compiler offers a `--optimize carbon` flag. Power data already in driver manifests; adds grid carbon intensity + cost function.
+
+- [x] `python/tpt_catalyst/tpt_catalyst/carbon.py` — `GRID_INTENSITY_GCO2_PER_KWH` region map; `CarbonEstimate` dataclass; `estimate_carbon(target, driver, inference_time_s, region)`; `select_lowest_carbon_target(estimates)`
+- [ ] Add `--optimize carbon` and `--carbon-region <region>` flags to `tpt-catalyst ingest` and `tpt-catalyst check` CLI
+- [ ] Include `CarbonEstimate` per target in `CompatibilityReport` output
+- [ ] Add optional `carbon_overhead_gco2: float` to `PowerProfile` in driver.py (embodied carbon amortisation)
+- [ ] Add `carbon_profile: Option<CarbonProfile>` to `PackageManifest` in `crates/tpt-catalyst/src/package.rs`
+- [ ] Observer UI: carbon cost column in hardware picker table; "lowest carbon" badge on recommended target
+- [ ] CLI: `tpt-catalyst check model.tptir --optimize carbon --carbon-region eu` prints ranked carbon table
+
+### Gap 4: Cross-Hardware Speculative Decoding (`python/tpt_mosaic/tpt_mosaic/speculative.py`)
+
+Draft model on Alloy swarm + verify model on Fusion FPGA. Standard speculative decoding loop across physically separate hardware — native to Mosaic, impossible to replicate on single-hardware stacks.
+
+- [x] `speculative.py` — `SpeculativeConfig` dataclass (draft_pkg, verify_pkg, gamma=4, acceptance_threshold=0.8); `SpeculativeOrchestrator.run(prompt_tokens)` async loop; `get_metrics()` → `SpeculativeMetrics`
+- [x] Implement standard token acceptance criterion (probability ratio reject/accept) over Mosaic bridge
+- [ ] Add `run_speculative(config)` method to `MosaicOrchestrator`
+- [ ] Add `tpt-mosaic speculative --draft alloy.tptpkg --verify fusion.tptpkg --gamma 4` CLI command
+- [ ] Add `SpeculativeMetrics` struct to Observer telemetry schema (`services/tpt-observer/internal/telemetry/schema.go`)
+- [ ] Observer UI: speculative decoding dashboard panel — acceptance rate gauge, draft vs. effective TPS comparison
+
+### Gap 5: Hardware-Locked Model IP Protection
+
+Cryptographically bind a `.tptpkg` to specific hardware serial numbers. Package refuses to load on mismatched hardware.
+
+- [x] `python/tpt_catalyst/tpt_catalyst/ip_lock.py` — `HardwareLock` dataclass (fingerprint_sha256, lock_type, locked_at, issuer); `create_lock(hardware_ids)`; `verify_lock(lock, present_ids)`
+- [x] `crates/tpt-catalyst/src/ip_lock.rs` — `HardwareLock` struct; `verify_lock()` called in `PackageReader::open()` before returning contents
+- [ ] Add `hardware_lock: Option<HardwareLock>` to `PackageManifest` in package.rs
+- [ ] Add `--lock-to-hardware <id1,id2,...>` flag to `tpt-catalyst pack` CLI
+- [ ] Alloy firmware generator: embed fingerprint verification at boot before inference (reads node serial from efuse/OTP)
+- [ ] Observer UI: lock icon + hardware IDs in package manifest view; "Locked" badge on locked packages
+- [ ] CLI: `tpt-catalyst unpack` prints lock status; errors clearly on fingerprint mismatch
+
+### Gap 6: Structured Sparsity Exploitation
+
+2:4 sparsity (≥2 zeros per 4 weights) lets FPGA MAC arrays skip zero multiplications, halving compute. Source: `.tptprofile` activation_sparsity per layer.
+
+- [x] `python/tpt_catalyst/tpt_catalyst/sparsity.py` — `SparsityMode` enum (NONE, TWO_FOUR, FOUR_EIGHT, AUTO); `SparsityPattern` dataclass; `SparsityAnalyzer.analyze(ir, profile)`; `enforce_2_4(weights)` pruning function
+- [x] `python/tpt_fusion/tpt_fusion/sparse_mac.py` — `SparseMacArray`: Amaranth HDL with skip-zero gating; compressed index sidecar for routing non-zero values
+- [ ] Add `sparsity_map: dict[str, SparsityPattern]` to `QuantizationProfile` in `python/tpt_catalyst/tpt_catalyst/quantize.py`
+- [ ] Extend `MacConfig` with `sparsity_mode: SparsityMode`; dispatch to `SparseMacArray` in `mac_array.py`
+- [ ] Add `--sparsity auto|2:4|4:8|none` flag to `tpt-catalyst ingest` CLI
+- [ ] Observer UI: per-layer sparsity map in IR Graph Editor (density heatmap overlay)
+
+### Gap 7: Community Compilation Cache
+
+FPGA synthesis takes hours. A content-addressed public registry turns repeated compilations of common model+board combos from hours to seconds.
+
+- [x] `python/tpt_catalyst/tpt_catalyst/community_cache.py` — `CommunityCacheClient.lookup(model_sha256, board, synthesis_flags)`; `publish(tptpkg_path, ...)`; local index cache with 1h TTL
+- [ ] `cloud/synthesis-broker/internal/cache/cache.go` — `CacheClient` struct; `Lookup(modelSHA, board, flagsHash)` called before synthesis job dispatch in broker.go
+- [ ] Define `community_cache_index.json` schema: array of `{model_sha256, board, flags_hash, download_url, verified_at, accuracy_delta}`
+- [ ] Add `--community-cache` / `--no-community-cache` flags to `tpt-catalyst pack` CLI
+- [ ] Integrate `CacheClient.Lookup()` into `cloud/synthesis-broker/internal/broker/broker.go` dispatch path
+- [ ] Bootstrap index with TinyLlama Q4 × Alveo U250 entry on GitHub Releases
+- [ ] Observer UI: "Using community build (saved ~4h synthesis)" notification on cache hit
+
+### Gap 8: RISC-V Custom ML ISA Generation (`python/tpt_alloy/tpt_alloy/riscv_isa.py`)
+
+Generate per-model RISC-V custom instructions (using RISC-V custom opcode spaces) as Chisel source, then synthesize to soft-core RISC-V FPGA — bridges Alloy and Fusion.
+
+- [x] `riscv_isa.py` — `RiscVCustomOp` dataclass (mnemonic, opcode_space, funct3, funct7, latency_cycles); `RiscVExtensionGenerator.analyze(ir)` profiles op frequency; `generate_chisel(ops)` emits Chisel3 VexRiscV plugin source; `generate_gnu_binutils_patch(ops)` emits GAS assembler extension
+- [ ] Add `tpt-alloy riscv-isa <model.tptir> [--top-n 8] --output <dir>` subcommand to Alloy CLI
+- [ ] Add `--riscv-ext <custom_ext.scala>` flag to `tpt-fusion generate` CLI; include extension in soft-core synthesis when provided
+- [ ] Observer UI: RISC-V ISA panel showing generated instructions with estimated speedup per op
+
+### Gap 9: TPT Photon — Photonic Backend Stub (`python/tpt_photon/`)
+
+Experimental forward-looking backend for silicon photonics inference (MZI mesh). No open-source compiler exists. Targets Lightmatter Passage, LightOn OPUs. Marked EXPERIMENTAL throughout.
+
+- [x] Create `python/tpt_photon/` module scaffold
+- [x] `mzi_mesh.py` — `MziMeshGenerator`: SVD decompose weight matrix (Clements decomposition); `phase_encode(U)` → MZI phase angles (radians); `MziConfig` dataclass (mesh_size, phase_angles, nonlinearity)
+- [ ] `package_writer.py` — write `targets/photon/` (phase_config.json, mzi_layout.json, EXPERIMENTAL marker)
+- [ ] `cli.py` — `tpt-photon compile <model.tptir>` (prints EXPERIMENTAL warning prominently)
+- [ ] Add `HardwareTarget.PHOTONIC` (experimental flag) to partition.py; dispatch in orchestrator.py
+- [ ] Add `"photonic"` hardware_type + `PhotonicSpec` (mesh_size, wavelength_nm, modulation) to driver.py
+- [ ] Observer UI: photonic target card with EXPERIMENTAL badge; phase angle visualizer
+
+### Gap 10: Intermittent / Energy-Harvesting Computing Support
+
+Batteryless sensors lose power mid-inference. Checkpoint ops in TPT-IR let firmware save and resume state across power cycles.
+
+- [x] `python/tpt_catalyst/tpt_catalyst/intermittent.py` — `CheckpointGranularity` enum (LAYER, BLOCK, OPERATOR); `IntermittentProfile` dataclass; `CheckpointPlanner.insert_checkpoints(ir, profile)`; `estimate_energy_per_layer(ir, driver)`; `validate_budget(ir, profile)` → budget warnings
+- [ ] Add `--intermittent`, `--checkpoint-granularity layer|block|operator`, `--energy-budget-mj <float>` flags to `tpt-catalyst ingest` CLI
+- [ ] Alloy firmware generator: recognise `tpt.checkpoint` ops; emit EEPROM write/read around boundaries; add power-monitor ISR hook (GPIO voltage-drop interrupt)
+- [ ] Add `checkpoint_storage: str | None` and `power_monitor_pin: str | None` to `DriverManifest` in driver.py
+- [ ] Observer UI: energy budget progress bar; checkpoint marker overlay on IR graph timeline; estimated inferences per harvest cycle
+
+### Gap Features — Cross-Cutting Changes
+
+- [ ] `python/tpt_mosaic/tpt_mosaic/partition.py` — extend `HardwareTarget` enum: add CIM, NEUROMORPHIC, PHOTONIC
+- [ ] `python/tpt_drivers/tpt_drivers/driver.py` — add `CimArraySpec`, `NeuromorphicSpec`, `PhotonicSpec` dataclasses; extend hardware_type literals; add `carbon_overhead_gco2` to `PowerProfile`; add `checkpoint_storage` + `power_monitor_pin` to `DriverManifest`
+- [ ] `crates/tpt-catalyst/src/package.rs` — add `hardware_lock: Option<HardwareLock>` and `carbon_profile: Option<CarbonProfile>` to `PackageManifest`
+- [ ] `services/tpt-observer/internal/telemetry/schema.go` — add `SpeculativeMetrics` and `CarbonMetrics` structs

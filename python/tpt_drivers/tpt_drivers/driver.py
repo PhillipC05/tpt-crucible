@@ -54,6 +54,11 @@ class DriverManifest:
     flash_protocol: str = "serial"
     telemetry_adapter: str = "default"
     metadata: dict[str, Any] = field(default_factory=dict)
+    # Certification fields — set by the automated certification pipeline, not by contributors
+    verified: bool = False
+    signature: str = ""       # Ed25519 signature (hex) over canonical JSON of to_dict()
+    certified_at: str = ""    # ISO 8601 timestamp of when certification ran
+    certification_pipeline: str = ""  # git SHA of certify.py that signed this
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -80,6 +85,10 @@ class DriverManifest:
             },
             "flash_protocol": self.flash_protocol,
             "telemetry_adapter": self.telemetry_adapter,
+            "verified": self.verified,
+            "signature": self.signature,
+            "certified_at": self.certified_at,
+            "certification_pipeline": self.certification_pipeline,
         }
 
     @classmethod
@@ -118,6 +127,10 @@ class DriverManifest:
             pins=pins, synthesis=synthesis, bom=bom, power=power,
             flash_protocol=data.get("flash_protocol", "serial"),
             telemetry_adapter=data.get("telemetry_adapter", "default"),
+            verified=data.get("verified", False),
+            signature=data.get("signature", ""),
+            certified_at=data.get("certified_at", ""),
+            certification_pipeline=data.get("certification_pipeline", ""),
         )
 
     def to_toml(self) -> str:
