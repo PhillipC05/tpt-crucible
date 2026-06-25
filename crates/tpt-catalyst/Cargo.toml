@@ -1,0 +1,19 @@
+[package]
+name = "tpt-catalyst"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "TPT Catalyst — Core IR compiler for AI model ingestion"
+
+[features]
+default = []
+mlir = ["dep:melior"]
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+sha2.workspace = true
+melior = { workspace = true, optional = true }
