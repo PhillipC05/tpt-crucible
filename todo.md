@@ -138,6 +138,126 @@
 
 ---
 
+## Automation & Pipeline Intelligence
+
+### Toolchain Error Handling
+- [ ] Build error interception layer in Fusion tool wrappers (Yosys, Nextpnr): parse stderr, match against pattern catalog, emit structured error type
+- [ ] Build error catalog: ~30 common Yosys/Nextpnr failure patterns (timing closure, missing module, resource overflow) → plain-English messages + suggested action
+- [ ] Build equivalent error catalog for Xyce/ngspice (Element) and PlatformIO (Alloy)
+- [ ] Observer UI: show structured error message + suggested action; "raw output" toggle for advanced users
+- [ ] LLM fallback: if error doesn't match catalog and LLM provider is configured, send full error + context → show "AI Diagnosis" panel in Observer
+- [ ] CLI: structured errors also printed to stderr in JSON format for CI/CD consumption
+
+### `tpt-doctor` Toolchain Verifier (`python/tpt_catalyst/doctor.py`)
+- [ ] Detect and version-check all required external tools: Yosys, Nextpnr, PlatformIO, Xyce/ngspice, Verilator
+- [ ] Report: installed / wrong version / missing, with platform-specific install instructions per tool
+- [ ] Run end-to-end smoke test: compile a minimal 2-layer model through each available hardware path
+- [ ] Output: green/amber/red per tool; overall readiness score
+- [ ] CLI: `tpt-doctor` (check all) and `tpt-doctor --target alloy|fusion|element`
+- [ ] Integrate into first-run wizard: auto-run `tpt-doctor` on first Observer launch, show results inline
+
+### Quantization Auto-Search Loop (Catalyst)
+- [ ] Implement `--quantize auto --accuracy-budget <float>` flag in Catalyst ingest CLI
+- [ ] Search strategy: start all layers at INT4 → run fast SiL accuracy check or `.tptprofile` sensitivity delta → promote fragile layers to INT8 until budget is met
+- [ ] Add mixed-precision mode: `--quantize mixed-precision` — uses per-layer sensitivity from `.tptprofile` to assign bit-widths independently
+- [ ] Emit per-layer quantization decision log into `.tptpkg` for auditability
+- [ ] Observer UI: show per-layer quantization map (INT4 = green, INT8 = amber, float = red) after search completes
+
+### Streaming Pre-flight + One-Click Auto-Fix
+- [ ] Refactor pre-flight graph scan to emit results as a stream (channel/iterator) rather than a blocking report
+- [ ] Go backend: expose pre-flight stream as a WebSocket event feed
+- [ ] Observer UI: operators flash pass/warn/fail in the Visual IR Graph Editor as they're checked
+- [ ] Add `fix` action to each pre-flight warning: deterministic substitutions (Flash Attention → MHA, SwiGLU → GELU, RMSNorm → LayerNorm) applied on click
+- [ ] Show diff preview for ambiguous substitutions; require confirmation before apply
+- [ ] Export fixed IR back to `.tptir` automatically after applying fixes
+
+### Automatic Accuracy Regression on Recompile
+- [ ] On every `tpt-catalyst pack` invocation, check for existing `.tptpkg` for same model+target in working directory
+- [ ] If prior package found: auto-launch validator in background (SiL), diff accuracy vs. prior package
+- [ ] Observer UI: show regression badge (▲ improved / ▼ regressed / = unchanged) on new package card
+- [ ] Block flash (with override option) if regression exceeds configurable threshold (default 2%)
+- [ ] CLI: `--no-regression-check` flag to skip for CI environments that run it separately
+
+### Parallel Firmware Flashing (Alloy OTA enhancement)
+- [ ] Detect WiFi-capable nodes (ESP32); default to parallel OTA broadcast when WiFi configured
+- [ ] USB fallback: detect all connected USB hubs, distribute node flashing across ports in parallel
+- [ ] Flash progress: per-node status in Observer OTA heatmap (pending → flashing → done → failed)
+- [ ] Estimate total flash time before starting; show progress bar with ETA
+- [ ] CLI: `tpt-alloy flash --parallel` (USB) / `tpt-alloy flash --ota` (WiFi)
+
+### SiL Communication Parameter Auto-Tuner (Alloy)
+- [ ] Define tunable parameters: WiFi message size, batch size, retry count, UART baud rate
+- [ ] Implement SiL latency sweep: iterate parameter combinations, measure p99 inter-node latency in virtual swarm
+- [ ] Select parameter set that minimizes p99 latency within firmware memory budget
+- [ ] Bake tuned parameters into generated firmware as compile-time constants
+- [ ] Report: show tuned parameters vs. defaults and expected latency improvement in Observer
+- [ ] CLI: `tpt-alloy tune <model.tptpkg> --topology topology.json` → outputs `tuned_params.json`
+
+### SPICE Dataset Auto-Generation Pipeline (Element)
+- [ ] Define parametric sweep space: component tolerance (±1/5/10%), temperature range (-20°C to 85°C), supply voltage variance (±10%), circuit topology variants
+- [ ] Implement sweep orchestrator: enumerate parameter combinations, generate SPICE netlist per combo, submit to synthesis worker queue
+- [ ] Worker integration: Xyce jobs run on synthesis worker cluster (same Docker infra as FPGA synthesis)
+- [ ] Collect results: capture output voltages, power dissipation, failure modes per run
+- [ ] Auto-train Reality Check ML model when dataset reaches threshold (e.g., 5,000 runs)
+- [ ] Ship pre-trained Reality Check checkpoint with the repo; auto-update when new dataset is larger
+- [ ] CLI: `tpt-element generate-dataset --runs 10000 --worker-url <url>`
+
+### HuggingFace Model Search in Wizard (`python/tpt_catalyst/hf_search.py`)
+- [ ] Integrate `huggingface_hub` search API: search by name/tag, filter by model size, quantization type, task
+- [ ] Display results in Observer wizard step 1: model cards with size, quant type, license, download size
+- [ ] One-click download: fetch GGUF or SafeTensors to local model directory (shared with Spark layout)
+- [ ] Show download progress in wizard; auto-advance to step 2 when complete
+- [ ] Cache model index for offline use; refresh on demand
+
+---
+
+## AI Acceleration Features
+
+### LLM Error Diagnosis (Observer + tool wrappers)
+- [ ] Add LLM fallback hook to error interception layer: triggered when structured catalog returns no match
+- [ ] Build context bundle: full stderr + model size/operator count + target board + synthesis flags
+- [ ] Send context to pluggable LLM provider; render response as "AI Diagnosis" panel in Observer
+- [ ] "Apply suggestion" button if LLM response includes a specific actionable fix
+- [ ] Log LLM diagnoses locally for future catalog expansion
+- [ ] Hidden entirely when no LLM provider is configured
+
+### Mixed-Precision Quantization Search (Catalyst AI pass)
+- [ ] Extend auto-search loop to support per-layer bit-width assignment (not just uniform INT4/INT8)
+- [ ] Use `.tptprofile` activation sensitivity scores to rank layers by quantization fragility
+- [ ] Implement greedy promotion: sort layers by sensitivity, promote until accuracy budget is met
+- [ ] Fallback when `.tptprofile` absent: use gradient-free sensitivity estimation (small perturbation test per layer)
+- [ ] Benchmark: compare uniform INT4 vs. mixed-precision on TinyLlama accuracy + compression ratio
+
+### Synthesis Constraint Auto-Tuner (Fusion AI pass)
+- [ ] Define tunable synthesis parameter space: Yosys strategy (area/speed/balanced), effort level, ABC passes; Nextpnr routing seed, timing margin
+- [ ] Log synthesis job outcomes to synthesis worker: (parameters + model shape) → (timing slack, LUT utilization, duration)
+- [ ] Train regression model on accumulated job logs to predict optimal parameters given model shape + board
+- [ ] Integrate predictor as pre-synthesis pass: set Yosys/Nextpnr parameters automatically before invoking tools
+- [ ] Fallback: use sensible defaults when predictor hasn't accumulated enough data yet
+- [ ] Observer UI: show predicted vs. actual timing slack after each synthesis run to validate predictor
+
+### Predictive Compile Time Estimator (Fusion + Observer)
+- [ ] Log synthesis job durations to synthesis worker alongside model shape metadata
+- [ ] Train regression model: (operator count, tensor shapes, board, synthesis mode) → predicted time (minutes)
+- [ ] Observer UI: show "Estimated compile time: ~X–Y min" with confidence interval before user confirms compile
+- [ ] Update estimate live as synthesis progresses (remaining time = predicted − elapsed)
+- [ ] Show historical compile times for same model+board in a tooltip
+
+### AI-Generated Validation Prompt Suite (Validator)
+- [ ] Extract model domain hint from GGUF model card metadata (description, tags, model_type)
+- [ ] LLM prompt: "Given a model trained for [domain], generate 50 diverse test prompts that stress-test domain-specific vocabulary and edge cases"
+- [ ] Combine LLM-generated prompts with fixed 20-prompt standard suite
+- [ ] Cache generated suite per model ID to avoid re-generation on every validation run
+- [ ] Hidden when no LLM provider configured; falls back to standard 20-prompt suite only
+
+### Bandwidth-Weighted Partition Graph (Alloy)
+- [ ] Add communication volume estimator pass before METIS: traverse TPT-IR edges, compute byte volume per edge (tensor dtype × shape × batch size)
+- [ ] Annotate partition graph edge weights with byte volumes
+- [ ] Pass weighted graph to METIS (already supports edge weights via `adjwgt` parameter)
+- [ ] Benchmark: compare unweighted vs. bandwidth-weighted partitioning on inter-node traffic in SiL
+
+---
+
 ## Phase 3: The Physics Engine (Year 2)
 
 ### TPT Element — Analog Compute Module
