@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 const IrGraphEditor = dynamic(
   () => import("@/components/IrGraphEditor").then((mod) => mod.IrGraphEditor),
@@ -15,6 +15,58 @@ const TelemetryReplay = dynamic(
 
 export default function EditorPage() {
   const [selectedNode, setSelectedNode] = useState<any>(null);
+  const [saving, setSaving] = useState(false);
+  const [statusMsg, setStatusMsg] = useState("");
+  const graphRef = useRef<any>(null);
+
+  const handleExport = useCallback(async () => {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
+    const graph = graphRef.current?.getGraph?.() ?? {};
+    try {
+      const res = await fetch(`${apiUrl}/api/ir/export`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(graph),
+      });
+      if (!res.ok) throw new Error(res.statusText);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "model.tptir";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      const json = JSON.stringify(graph, null, 2);
+      const blob = new Blob([json], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "model.tptir";
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  }, []);
+
+  const handleSave = useCallback(async () => {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
+    const graph = graphRef.current?.getGraph?.() ?? {};
+    setSaving(true);
+    setStatusMsg("");
+    try {
+      const res = await fetch(`${apiUrl}/api/ir/current`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(graph),
+      });
+      setStatusMsg(res.ok ? "Saved" : `Error: ${res.statusText}`);
+    } catch {
+      setStatusMsg("Save failed — backend unreachable");
+    } finally {
+      setSaving(false);
+      setTimeout(() => setStatusMsg(""), 3000);
+    }
+  }, []);
 
   return (
     <div className="h-screen flex flex-col bg-bg-primary grid-bg">
@@ -23,12 +75,20 @@ export default function EditorPage() {
           <h1 className="text-lg font-bold text-accent-cyan">TPT-IR Visual Graph Editor</h1>
           <p className="text-xs text-text-secondary">Interactive DAG editor for neural network operators</p>
         </div>
-        <div className="flex gap-2">
-          <button className="px-3 py-1.5 rounded bg-bg-tertiary text-text-secondary hover:text-text-primary text-xs border border-border">
+        <div className="flex items-center gap-2">
+          {statusMsg && <span className="text-xs text-accent-amber">{statusMsg}</span>}
+          <button
+            onClick={handleExport}
+            className="px-3 py-1.5 rounded bg-bg-tertiary text-text-secondary hover:text-text-primary text-xs border border-border"
+          >
             Export .tptir
           </button>
-          <button className="px-3 py-1.5 rounded bg-accent-cyan/20 text-accent-cyan text-xs border border-accent-cyan/50">
-            Save Changes
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="px-3 py-1.5 rounded bg-accent-cyan/20 text-accent-cyan text-xs border border-accent-cyan/50 disabled:opacity-50"
+          >
+            {saving ? "Saving..." : "Save Changes"}
           </button>
         </div>
       </div>

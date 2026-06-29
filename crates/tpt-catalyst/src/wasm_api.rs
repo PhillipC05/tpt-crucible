@@ -92,15 +92,90 @@ pub fn validate_ir(ir_json: &str) -> String {
     }
 }
 
+/// Operators not supported on each hardware target.
+const ALLOY_UNSUPPORTED: &[&str] = &["FlashAttention", "SwiGLU", "RMSNorm"];
+const FUSION_UNSUPPORTED: &[&str] = &["SwiGLU"];
+const ELEMENT_UNSUPPORTED: &[&str] = &["FlashAttention", "Embedding", "Softmax", "LayerNorm"];
+const CIM_UNSUPPORTED: &[&str] = &["FlashAttention", "Softmax", "LayerNorm", "RMSNorm"];
+const NEUROMORPHIC_UNSUPPORTED: &[&str] = &["FlashAttention", "LayerNorm", "RMSNorm"];
+
+/// Maximum accepted IR JSON size (50 MB).
+const MAX_IR_BYTES: usize = 50 * 1024 * 1024;
+
 /// Check compatibility of operators against a hardware target.
+///
+/// Returns a JSON object with: target, score (0.0–1.0), status (pass/warn/fail),
+/// total_ops, unsupported_count, warnings[], model_name.
 #[wasm_bindgen]
 pub fn check_compatibility(ir_json: &str, target: &str) -> String {
-    let _ = ir_json;
-    let _ = target;
-    let result = serde_json::json!({
+    if ir_json.len() > MAX_IR_BYTES {
+        return serde_json::json!({
+            "error": "IR JSON exceeds 50 MB limit",
+            "target": target,
+            "score": 0.0,
+            "status": "fail",
+        })
+        .to_string();
+    }
+
+    let ir = match crate::ir::TptIr::from_json(ir_json) {
+        Ok(ir) => ir,
+        Err(e) => {
+            return serde_json::json!({
+                "error": format!("Invalid IR JSON: {e}"),
+                "target": target,
+                "score": 0.0,
+                "status": "fail",
+            })
+            .to_string();
+        }
+    };
+
+    let unsupported: &[&str] = match target {
+        "alloy" => ALLOY_UNSUPPORTED,
+        "fusion" => FUSION_UNSUPPORTED,
+        "element" => ELEMENT_UNSUPPORTED,
+        "cim" | "silicon" => CIM_UNSUPPORTED,
+        "neuromorphic" | "pulse" => NEUROMORPHIC_UNSUPPORTED,
+        _ => &[],
+    };
+
+    let total = ir.graph.nodes.len();
+    let mut warnings: Vec<String> = Vec::new();
+    let mut unsupported_count = 0usize;
+
+    for node in &ir.graph.nodes {
+        if unsupported.contains(&node.op_type.as_str()) {
+            warnings.push(format!(
+                "Op '{}' (node '{}') not supported on {}",
+                node.op_type, node.name, target
+            ));
+            unsupported_count += 1;
+        }
+    }
+
+    let score = if total == 0 {
+        1.0_f64
+    } else {
+        (total - unsupported_count) as f64 / total as f64
+    };
+
+    let status = if unsupported_count == 0 {
+        "pass"
+    } else if score >= 0.8 {
+        "warn"
+    } else {
+        "fail"
+    };
+
+    serde_json::json!({
         "target": target,
-        "score": 0.95,
-        "message": "Compatibility check completed (WASM stub)",
-    });
-    result.to_string()
+        "score": score,
+        "status": status,
+        "total_ops": total,
+        "unsupported_count": unsupported_count,
+        "warnings": warnings,
+        "model_name": ir.metadata.name,
+    })
+    .to_string()
 }

@@ -166,9 +166,21 @@ impl PackageBuilder {
         self.manifest.mosaic_partition = Some(partition);
     }
 
-    pub fn build(self, _output_path: &Path) -> Result<(), PackageError> {
+    pub fn build(self, output_path: &Path) -> Result<(), PackageError> {
         let manifest_json = self.manifest.to_json()?;
-        std::fs::write(self.staging_dir.join("manifest.json"), manifest_json)?;
+        std::fs::write(self.staging_dir.join("manifest.json"), &manifest_json)?;
+
+        let file = std::fs::File::create(output_path)?;
+        let mut zip_writer = zip::ZipWriter::new(file);
+        let options = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Deflated);
+
+        write_dir_to_zip(&mut zip_writer, &self.staging_dir, &self.staging_dir, options)
+            .map_err(|e| PackageError::Zip(e.to_string()))?;
+
+        zip_writer
+            .finish()
+            .map_err(|e| PackageError::Zip(e.to_string()))?;
         Ok(())
     }
 
@@ -218,6 +230,42 @@ impl PackageReader {
             self.manifest.format_version,
         )
     }
+}
+
+/// Recursively add all files under `dir` into `zip`, using paths relative to `base`.
+///
+/// Guards against path traversal: any entry whose relative path contains `..`
+/// or starts with `/` or `\` is rejected with [`PackageError::Zip`].
+fn write_dir_to_zip(
+    zip: &mut zip::ZipWriter<std::fs::File>,
+    base: &Path,
+    dir: &Path,
+    options: zip::write::SimpleFileOptions,
+) -> Result<(), PackageError> {
+    use std::io::Write;
+    for entry in std::fs::read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        let rel = path
+            .strip_prefix(base)
+            .map_err(|e| PackageError::Zip(e.to_string()))?;
+
+        let rel_str = rel.to_string_lossy();
+        if rel_str.contains("..") || rel_str.starts_with('/') || rel_str.starts_with('\\') {
+            return Err(PackageError::Zip(format!("Unsafe entry path: {rel_str}")));
+        }
+
+        if path.is_dir() {
+            write_dir_to_zip(zip, base, &path, options)?;
+        } else {
+            let entry_name = rel_str.replace('\\', "/");
+            zip.start_file(&entry_name, options)
+                .map_err(|e| PackageError::Zip(e.to_string()))?;
+            let data = std::fs::read(&path)?;
+            zip.write_all(&data)?;
+        }
+    }
+    Ok(())
 }
 
 /// Compute SHA-256 of a file.

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 
 interface SidebarProps {
   selectedTab: string;
@@ -17,6 +18,22 @@ const tabs = [
 ];
 
 export function Sidebar({ selectedTab, onTabChange, connected }: SidebarProps) {
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
+
+  useEffect(() => {
+    const stored = localStorage.getItem("tpt_theme") as "dark" | "light" | null;
+    const initial = stored ?? "dark";
+    setTheme(initial);
+    document.documentElement.setAttribute("data-theme", initial);
+  }, []);
+
+  function toggleTheme() {
+    const next = theme === "dark" ? "light" : "dark";
+    setTheme(next);
+    localStorage.setItem("tpt_theme", next);
+    document.documentElement.setAttribute("data-theme", next);
+  }
+
   return (
     <aside className="w-64 bg-bg-secondary border-r border-border flex flex-col">
       <div className="p-4 border-b border-border">
@@ -49,27 +66,49 @@ export function Sidebar({ selectedTab, onTabChange, connected }: SidebarProps) {
             href="/topology"
             className="w-full flex items-center gap-3 px-3 py-2 rounded text-sm text-text-secondary hover:text-text-primary hover:bg-bg-tertiary transition-colors"
           >
-            <span className="text-base">\u29bb</span>
+            <span className="text-base">⦻</span>
             <span>3D Topology</span>
           </Link>
           <Link
             href="/editor"
             className="w-full flex items-center gap-3 px-3 py-2 rounded text-sm text-text-secondary hover:text-text-primary hover:bg-bg-tertiary transition-colors"
           >
-            <span className="text-base">\u25c7</span>
+            <span className="text-base">◇</span>
             <span>IR Graph Editor</span>
           </Link>
           <Link
             href="/cloud"
             className="w-full flex items-center gap-3 px-3 py-2 rounded text-sm text-text-secondary hover:text-text-primary hover:bg-bg-tertiary transition-colors"
           >
-            <span className="text-base">\u2601</span>
+            <span className="text-base">☁</span>
             <span>Cloud</span>
+          </Link>
+          <Link
+            href="/jobs"
+            className="w-full flex items-center gap-3 px-3 py-2 rounded text-sm text-text-secondary hover:text-text-primary hover:bg-bg-tertiary transition-colors"
+          >
+            <span className="text-base">⊟</span>
+            <span>Job History</span>
+          </Link>
+          <Link
+            href="/settings"
+            className="w-full flex items-center gap-3 px-3 py-2 rounded text-sm text-text-secondary hover:text-text-primary hover:bg-bg-tertiary transition-colors"
+          >
+            <span className="text-base">⚙</span>
+            <span>Settings</span>
           </Link>
         </div>
       </nav>
 
-      <div className="p-4 border-t border-border">
+      <div className="p-4 border-t border-border space-y-3">
+        <button
+          onClick={toggleTheme}
+          title="Toggle dark/light mode"
+          className="w-full flex items-center gap-2 px-3 py-1.5 rounded text-xs text-text-secondary hover:text-text-primary hover:bg-bg-tertiary transition-colors"
+        >
+          <span>{theme === "dark" ? "○" : "●"}</span>
+          <span>{theme === "dark" ? "Light mode" : "Dark mode"}</span>
+        </button>
         <div className="flex items-center gap-2">
           <div
             className={`w-2 h-2 rounded-full ${

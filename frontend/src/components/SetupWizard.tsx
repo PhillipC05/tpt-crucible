@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { z } from "zod";
 
 interface WizardState {
   step: number;
@@ -18,14 +19,36 @@ interface DoctorResult {
   tools: { name: string; status: string; version: string }[];
 }
 
+const WizardStateSchema = z.object({
+  step: z.number().int().min(1).max(5).default(1),
+  modelPath: z.string().default(""),
+  modelName: z.string().default(""),
+  hardwareTarget: z.enum(["alloy", "fusion", "element"]).default("alloy"),
+  quantize: z.boolean().default(true),
+  autoFlash: z.boolean().default(false),
+  doctorResults: z
+    .object({
+      readiness_score: z.number(),
+      overall_status: z.string(),
+      tools: z.array(
+        z.object({ name: z.string(), status: z.string(), version: z.string() })
+      ),
+    })
+    .nullable()
+    .default(null),
+});
+
 const STORAGE_KEY = "tpt-crucible-wizard-state";
 
 function loadWizardState(): Partial<WizardState> | null {
   if (typeof window === "undefined") return null;
   try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    return saved ? JSON.parse(saved) : null;
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return WizardStateSchema.parse(parsed);
   } catch {
+    localStorage.removeItem(STORAGE_KEY);
     return null;
   }
 }

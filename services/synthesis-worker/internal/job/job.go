@@ -150,15 +150,42 @@ func (m *Manager) runFusion(job *Job, workDir string) {
 }
 
 func (m *Manager) runAlloy(job *Job, workDir string) {
-	cmd := exec.Command("echo", fmt.Sprintf("Firmware compiled for %s", job.ModelName))
+	// Extract firmware source directory from the uploaded .tptpkg (convention: targets/alloy/)
+	fwDir := filepath.Join(workDir, "targets", "alloy")
+	if err := os.MkdirAll(fwDir, 0755); err != nil {
+		m.mu.Lock()
+		job.Status = StatusFailed
+		job.Error = fmt.Sprintf("failed to create firmware dir: %v", err)
+		m.mu.Unlock()
+		return
+	}
+
+	// Run PlatformIO to compile firmware.  Each arg is a separate element to
+	// prevent shell-injection from user-supplied model names.
+	cmd := exec.Command("platformio", "run", "--project-dir", fwDir, "--environment", "alloy")
 	cmd.Dir = workDir
-	output, _ := cmd.CombinedOutput()
+	output, err := cmd.CombinedOutput()
 
 	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if err != nil {
+		job.Status = StatusFailed
+		job.Error = string(output)
+		return
+	}
+
+	// Validate that the expected artifact was produced.
+	artifactPath := filepath.Join(fwDir, ".pio", "build", "alloy", "firmware.bin")
+	if _, statErr := os.Stat(artifactPath); statErr != nil {
+		job.Status = StatusFailed
+		job.Error = fmt.Sprintf("firmware.bin not found after compilation: %v", statErr)
+		return
+	}
+
 	job.Status = StatusComplete
 	hash := sha256.Sum256(output)
 	job.Result = hex.EncodeToString(hash[:])
-	m.mu.Unlock()
 }
 
 func (m *Manager) ToJSON() []byte {

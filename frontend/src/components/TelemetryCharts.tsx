@@ -5,18 +5,16 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   Legend,
 } from "recharts";
-import { useMemo } from "react";
+import { useContext } from "react";
+import { TelemetryContext } from "@/contexts/TelemetryContext";
 
-function generateTimeSeries(points: number, baseValue: number, variance: number) {
-  const now = Date.now();
-  return Array.from({ length: points }, (_, i) => ({
-    time: new Date(now - (points - i) * 1000).toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" }),
-    value: Math.max(0, baseValue + (Math.random() - 0.5) * variance),
-  }));
+function useTelemetryOptional() {
+  return useContext(TelemetryContext);
 }
 
 export function TokensPerSecondChart({ data }: { data?: { time: string; value: number }[] }) {
-  const chartData = data || useMemo(() => generateTimeSeries(30, 120, 40), []);
+  const telemetry = useTelemetryOptional();
+  const chartData = data ?? telemetry?.tpsData ?? [];
 
   return (
     <div className="stat-card">
@@ -44,7 +42,8 @@ export function TokensPerSecondChart({ data }: { data?: { time: string; value: n
 }
 
 export function MemoryBandwidthChart({ data }: { data?: { time: string; value: number }[] }) {
-  const chartData = data || useMemo(() => generateTimeSeries(30, 412, 60), []);
+  const telemetry = useTelemetryOptional();
+  const chartData = data ?? telemetry?.bandwidthData ?? [];
 
   return (
     <div className="stat-card">
@@ -72,7 +71,8 @@ export function MemoryBandwidthChart({ data }: { data?: { time: string; value: n
 }
 
 export function ThermalDriftChart({ data }: { data?: { time: string; value: number }[] }) {
-  const chartData = data || useMemo(() => generateTimeSeries(30, 0.12, 0.08), []);
+  const telemetry = useTelemetryOptional();
+  const chartData = data ?? telemetry?.thermalData ?? [];
 
   return (
     <div className="stat-card">
@@ -99,14 +99,15 @@ interface LatencyNode {
   status: "online" | "busy" | "offline";
 }
 
+const FALLBACK_LATENCY_NODES: LatencyNode[] = Array.from({ length: 16 }, (_, i) => ({
+  id: `N${i}`,
+  latency: 1 + (i % 5) * 0.8,
+  status: i % 10 === 0 ? "offline" : i % 4 === 0 ? "busy" : "online",
+}));
+
 export function LatencyHeatmap({ nodes }: { nodes?: LatencyNode[] }) {
-  const nodeData = nodes || useMemo(() =>
-    Array.from({ length: 16 }, (_, i) => ({
-      id: `N${i}`,
-      latency: 1 + Math.random() * 4,
-      status: Math.random() > 0.1 ? "online" : Math.random() > 0.5 ? "busy" : "offline",
-    } as LatencyNode)),
-  []);
+  const telemetry = useTelemetryOptional();
+  const nodeData = nodes ?? (telemetry?.latencyNodes.length ? telemetry.latencyNodes : FALLBACK_LATENCY_NODES);
 
   const maxLatency = Math.max(...nodeData.map((n) => n.latency));
 

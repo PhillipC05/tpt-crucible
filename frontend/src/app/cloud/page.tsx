@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 interface Job {
   id: string;
@@ -13,12 +13,8 @@ interface Job {
   result_url?: string;
 }
 
-const sampleJobs: Job[] = [
-  { id: "job_001", model_name: "tinyllama-1.1b", target: "alloy", status: "complete", progress: 100, created_at: "14:32:01", estimated_time: "2m 15s", result_url: "/download/job_001.tptpkg" },
-  { id: "job_002", model_name: "llama2-7b", target: "fusion", status: "running", progress: 67, created_at: "14:31:45", estimated_time: "~45m remaining" },
-  { id: "job_003", model_name: "mistral-7b", target: "element", status: "pending", progress: 0, created_at: "14:30:22" },
-  { id: "job_004", model_name: "qwen2.5-3b", target: "alloy", status: "failed", progress: 34, created_at: "14:29:10" },
-];
+const ACCEPTED_EXTENSIONS = [".gguf", ".pt", ".onnx", ".tflite", ".safetensors"];
+const MAX_FILE_BYTES = 10 * 1024 * 1024 * 1024; // 10 GB
 
 const targetInfo: Record<string, { label: string; description: string; icon: string }> = {
   alloy: { label: "Swarm", description: "ESP32/RP2040 mesh network", icon: "\u2B21" },
@@ -29,15 +25,62 @@ const targetInfo: Record<string, { label: string; description: string; icon: str
   photon: { label: "Photonic", description: "MZI mesh (experimental)", icon: "\u2600" },
 };
 
+function validateFile(file: File): string | null {
+  const name = file.name.toLowerCase();
+  if (!ACCEPTED_EXTENSIONS.some((ext) => name.endsWith(ext))) {
+    return `Unsupported file type. Accepted: ${ACCEPTED_EXTENSIONS.join(", ")}`;
+  }
+  if (file.size > MAX_FILE_BYTES) {
+    return "File exceeds 10 GB limit.";
+  }
+  return null;
+}
+
 export default function CloudPage() {
   const [uploading, setUploading] = useState(false);
   const [selectedTarget, setSelectedTarget] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
 
-  const handleUpload = () => {
+  useEffect(() => {
+    const fetchJobs = () => {
+      fetch(`${apiUrl}/api/jobs`)
+        .then((r) => r.json())
+        .then((data: Job[]) => setJobs(data))
+        .catch(() => {});
+    };
+    fetchJobs();
+    const interval = setInterval(fetchJobs, 5000);
+    return () => clearInterval(interval);
+  }, [apiUrl]);
+
+  const handleFile = useCallback((file: File) => {
+    const err = validateFile(file);
+    if (err) { setFileError(err); setSelectedFile(null); return; }
+    setFileError(null);
+    setSelectedFile(file);
+  }, []);
+
+  const handleStartCompilation = useCallback(async () => {
+    if (!selectedFile || !selectedTarget) return;
     setUploading(true);
-    setTimeout(() => setUploading(false), 2000);
-  };
+    try {
+      const formData = new FormData();
+      formData.append("model", selectedFile);
+      formData.append("target", selectedTarget);
+      const res = await fetch(`${apiUrl}/api/jobs`, { method: "POST", body: formData });
+      if (res.ok) {
+        const job: Job = await res.json();
+        setJobs((prev) => [job, ...prev]);
+      }
+    } catch { /* backend may be offline — show a toast in future */ }
+    setUploading(false);
+    setSelectedFile(null);
+  }, [selectedFile, selectedTarget, apiUrl]);
 
   const statusColors: Record<string, string> = {
     complete: "bg-accent-green",
@@ -56,31 +99,45 @@ export default function CloudPage() {
 
         <div className="stat-card">
           <h3 className="text-sm font-bold text-accent-amber mb-3">UPLOAD MODEL</h3>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept={ACCEPTED_EXTENSIONS.join(",")}
+            className="hidden"
+            onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
+          />
           <div
             className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer ${
               dragOver ? "border-accent-cyan bg-accent-cyan/5" : "border-border hover:border-accent-cyan/50"
             }`}
             onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
             onDragLeave={() => setDragOver(false)}
-            onDrop={(e) => { e.preventDefault(); setDragOver(false); handleUpload(); }}
-            onClick={handleUpload}
+            onDrop={(e) => {
+              e.preventDefault(); setDragOver(false);
+              const file = e.dataTransfer.files[0];
+              if (file) handleFile(file);
+            }}
+            onClick={() => fileInputRef.current?.click()}
           >
             {uploading ? (
               <div className="space-y-2">
-                <div className="text-accent-cyan animate-pulse">Uploading...</div>
-                <div className="w-48 h-1.5 bg-bg-tertiary rounded-full mx-auto overflow-hidden">
-                  <div className="h-full bg-accent-cyan rounded-full animate-pulse" style={{ width: "60%" }} />
-                </div>
+                <div className="text-accent-cyan animate-pulse">Submitting job...</div>
+              </div>
+            ) : selectedFile ? (
+              <div className="space-y-1">
+                <div className="text-sm text-accent-green">{selectedFile.name}</div>
+                <div className="text-xs text-text-secondary">{(selectedFile.size / 1_000_000).toFixed(1)} MB \u2014 click to change</div>
               </div>
             ) : (
               <>
-                <div className="text-3xl mb-2 text-text-secondary">\u2191</div>
+                <div className="text-3xl mb-2 text-text-secondary">{"\u2191"}</div>
                 <div className="text-sm text-text-primary">Drag and drop model file here</div>
-                <div className="text-xs text-text-secondary mt-1">Supports .gguf, .pt, .onnx, .safetensors</div>
+                <div className="text-xs text-text-secondary mt-1">Supports {ACCEPTED_EXTENSIONS.join(", ")}</div>
                 <div className="text-[10px] text-text-secondary mt-2">or click to browse</div>
               </>
             )}
           </div>
+          {fileError && <p className="text-xs text-accent-red mt-2">{fileError}</p>}
         </div>
 
         <div>
@@ -111,25 +168,25 @@ export default function CloudPage() {
 
         <div className="flex gap-3">
           <button
-            onClick={handleUpload}
-            disabled={!selectedTarget || uploading}
+            onClick={handleStartCompilation}
+            disabled={!selectedTarget || !selectedFile || uploading}
             className={`px-6 py-2.5 rounded font-bold text-sm transition-colors ${
-              selectedTarget && !uploading
+              selectedTarget && selectedFile && !uploading
                 ? "bg-accent-cyan text-bg-primary hover:bg-accent-cyan/90"
                 : "bg-bg-tertiary text-text-secondary cursor-not-allowed"
             }`}
           >
-            {uploading ? "Compiling..." : "Start Compilation"}
-          </button>
-          <button className="px-4 py-2.5 rounded bg-bg-tertiary text-text-secondary hover:text-text-primary text-sm border border-border">
-            Browse Packages
+            {uploading ? "Submitting..." : "Start Compilation"}
           </button>
         </div>
 
         <div className="stat-card">
           <h3 className="text-sm font-bold text-accent-amber mb-3">COMPILATION JOBS</h3>
           <div className="space-y-2">
-            {sampleJobs.map((job) => (
+            {jobs.length === 0 && (
+              <p className="text-xs text-text-secondary text-center py-4">No jobs yet. Submit a compilation job above.</p>
+            )}
+            {jobs.map((job) => (
               <div key={job.id} className="flex items-center gap-3 p-3 rounded bg-bg-tertiary hover:bg-bg-primary transition-colors">
                 <div className={`w-2.5 h-2.5 rounded-full ${statusColors[job.status]}`} />
                 <div className="flex-1">

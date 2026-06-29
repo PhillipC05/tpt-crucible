@@ -95,13 +95,30 @@ func (m *Manager) UpdateJob(id string, status Status, result string, errMsg stri
 	return true
 }
 
-func (m *Manager) SaveManifest(pkgDir string) error {
+func (m *Manager) SaveManifest(jobID, pkgDir string) error {
+	m.mu.RLock()
+	job, ok := m.jobs[jobID]
+	m.mu.RUnlock()
+
+	modelName := ""
+	targets := []string{}
+	if ok {
+		modelName = job.ModelName
+		if job.Target != "" {
+			targets = []string{job.Target}
+		}
+	}
+
 	manifest := map[string]interface{}{
 		"format_version": "1.0.0",
-		"model_name":     "",
-		"targets":        []string{},
+		"model_name":     modelName,
+		"targets":        targets,
+		"created_at":     time.Now().UTC().Format(time.RFC3339),
 	}
-	data, _ := json.MarshalIndent(manifest, "", "  ")
+	data, err := json.MarshalIndent(manifest, "", "  ")
+	if err != nil {
+		return err
+	}
 	return os.WriteFile(filepath.Join(pkgDir, "manifest.json"), data, 0644)
 }
 

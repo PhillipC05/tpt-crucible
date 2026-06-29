@@ -47,7 +47,7 @@ def print_quickstart() -> None:
         print()
 
     print("=" * 60)
-    print("  For more info: https://github.com/tpt-crucible/tpt-crucible")
+    print("  For more info: https://github.com/tpt-solutions/tpt-crucible")
     print("=" * 60 + "\n")
 
 

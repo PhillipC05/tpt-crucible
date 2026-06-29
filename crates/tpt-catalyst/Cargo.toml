@@ -17,6 +17,7 @@ anyhow.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 sha2.workspace = true
+zip.workspace = true
 melior = { workspace = true, optional = true }
 wasm-bindgen = { version = "0.2", optional = true }
 serde-wasm-bindgen = { version = "0.6", optional = true }

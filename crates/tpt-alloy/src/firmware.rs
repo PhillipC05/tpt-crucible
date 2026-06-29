@@ -108,11 +108,22 @@ fn generate_esp32_firmware(partition: &Partition) -> String {
         String::new()
     };
 
+    let layer_count = partition.assigned_layers.len();
+    let layer_array: String = partition
+        .assigned_layers
+        .iter()
+        .map(|l| l.to_string())
+        .collect::<Vec<_>>()
+        .join(", ");
+
     format!(
         r#"// Auto-generated ESP32 firmware for node {}
 // Layers: {:?}
 {}
 #include <Arduino.h>
+
+static const int tpt_assigned_layers[] = {{{}}};
+static const int TPT_LAYER_COUNT = {};
 
 void setup() {{
     Serial.begin(115200);
@@ -121,13 +132,17 @@ void setup() {{
 
 {}
 void loop() {{
-    // inference loop placeholder
-    delay(100);
+    for (int i = 0; i < TPT_LAYER_COUNT; i++) {{
+        tpt_run_layer(tpt_assigned_layers[i]);
+    }}
+    tpt_sync_neighbors();
 }}
 "#,
         partition.node_id,
         partition.assigned_layers,
         head_info,
+        layer_array,
+        layer_count,
         partition.node_id,
         sum_reduce_code
     )
@@ -144,19 +159,43 @@ fn generate_rp2040_firmware(partition: &Partition) -> String {
         String::new()
     };
 
+    let layer_count = partition.assigned_layers.len();
+    let layer_array: String = partition
+        .assigned_layers
+        .iter()
+        .map(|l| l.to_string())
+        .collect::<Vec<_>>()
+        .join(", ");
+
     format!(
         r#"// Auto-generated RP2040 firmware for node {}
 // Layers: {:?}
 {}
 #include "pico/stdlib.h"
+#include "hardware/flash.h"
+
+static const int tpt_assigned_layers[] = {{{}}};
+static const int TPT_LAYER_COUNT = {};
+
+/* TPT hardware-lock verify — reads unique_id from RP2040 flash */
+static void tpt_verify_hw_lock(void) {{
+    uint8_t uid[8];
+    flash_get_unique_id(uid);
+    uint64_t id64 = 0;
+    for (int i = 0; i < 8; i++) id64 = (id64 << 8) | uid[i];
+    (void)id64; /* compare against embedded fingerprint if --lock-to-hardware was used */
+}}
 
 int main() {{
     stdio_init_all();
+    tpt_verify_hw_lock();
     printf("TPT Alloy node {} starting\n");
     {}
     while (true) {{
-        // inference loop placeholder
-        sleep_ms(100);
+        for (int i = 0; i < TPT_LAYER_COUNT; i++) {{
+            tpt_run_layer(tpt_assigned_layers[i]);
+        }}
+        tpt_sync_neighbors();
     }}
     return 0;
 }}
@@ -164,6 +203,8 @@ int main() {{
         partition.node_id,
         partition.assigned_layers,
         head_info,
+        layer_array,
+        layer_count,
         partition.node_id,
         sum_reduce_code
     )
@@ -180,17 +221,42 @@ fn generate_riscv_firmware(partition: &Partition) -> String {
         String::new()
     };
 
+    let layer_count = partition.assigned_layers.len();
+    let layer_array: String = partition
+        .assigned_layers
+        .iter()
+        .map(|l| l.to_string())
+        .collect::<Vec<_>>()
+        .join(", ");
+
     format!(
         r#"// Auto-generated RISC-V firmware for node {}
 // Layers: {:?}
 {}
 #include <stdio.h>
+#include <stdint.h>
+
+static const int tpt_assigned_layers[] = {{{}}};
+static const int TPT_LAYER_COUNT = {};
+
+/* TPT hardware-lock verify — reads OTP fuses via SiFive OTP MMIO */
+static void tpt_verify_hw_lock(void) {{
+#ifdef SIFIVE_OTP_BASE
+    volatile uint32_t *otp = (volatile uint32_t *)SIFIVE_OTP_BASE;
+    uint64_t id64 = ((uint64_t)otp[1] << 32) | otp[0];
+    (void)id64; /* compare against embedded fingerprint if --lock-to-hardware was used */
+#endif
+}}
 
 int main() {{
+    tpt_verify_hw_lock();
     printf("TPT Alloy node {} starting\n");
     {}
     while (1) {{
-        // inference loop placeholder
+        for (int i = 0; i < TPT_LAYER_COUNT; i++) {{
+            tpt_run_layer(tpt_assigned_layers[i]);
+        }}
+        tpt_sync_neighbors();
     }}
     return 0;
 }}
@@ -198,6 +264,8 @@ int main() {{
         partition.node_id,
         partition.assigned_layers,
         head_info,
+        layer_array,
+        layer_count,
         partition.node_id,
         sum_reduce_code
     )

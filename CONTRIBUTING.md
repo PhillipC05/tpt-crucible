@@ -15,7 +15,7 @@ Thank you for your interest in contributing to TPT Crucible!
 
 ```bash
 # Clone the repo
-git clone https://github.com/tpt-crucible/tpt-crucible.git
+git clone https://github.com/tpt-solutions/tpt-crucible.git
 cd tpt-crucible
 
 # Build Rust crates
@@ -50,7 +50,7 @@ tpt-crucible/
 │   └── tpt_train/             # Training hooks for profiles
 ├── services/
 │   └── tpt-observer/          # Go backend service
-└── .github/workflows/         # CI/CD pipeline
+└── frontend/                  # Next.js Observer dashboard
 ```
 
 ## Development Workflow

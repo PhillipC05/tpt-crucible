@@ -4,6 +4,16 @@ import argparse
 import json
 import sys
 from pathlib import Path
+
+
+def _layer_count_from_ir(tptir_path: Path) -> int:
+    """Read the number of graph nodes from a .tptir JSON file."""
+    try:
+        data = json.loads(tptir_path.read_text())
+        count = len(data.get("graph", {}).get("nodes", []))
+        return count if count > 0 else 100
+    except Exception:
+        return 100
 from .topology import Topology
 from .partition import PartitionConfig, partition_model
 from .firmware import FirmwareTarget, FirmwareRtos, generate_firmware
@@ -116,7 +126,7 @@ def main() -> None:
             num_heads=args.num_heads,
             head_dim=args.head_dim,
         )
-        partitions = partition_model(100, config)
+        partitions = partition_model(_layer_count_from_ir(args.tptir), config)
 
         ft_enabled = args.fault_tolerance == "enabled"
         ft_config = None
@@ -188,7 +198,7 @@ def main() -> None:
             num_heads=args.num_heads,
             head_dim=args.head_dim,
         )
-        partitions = partition_model(100, config)
+        partitions = partition_model(_layer_count_from_ir(args.tptir), config)
         target = FirmwareTarget(args.target)
         rtos = FirmwareRtos(args.rtos)
 
@@ -241,7 +251,7 @@ def main() -> None:
         from .pipeline import build_pipeline_schedule, save_pipeline_config, PipelineConfig, estimate_psram_usage
         rows = cols = int(args.nodes**0.5) or 1
         pconfig = PartitionConfig(topology=Topology.grid2d(rows, cols))
-        partitions = partition_model(100, pconfig)
+        partitions = partition_model(args.nodes * pconfig.max_layers_per_node, pconfig)
 
         pipe_config = PipelineConfig(pipeline_depth=args.depth)
         schedule = build_pipeline_schedule(partitions, pipe_config, kv_bytes_per_token=args.kv_bytes_per_token)

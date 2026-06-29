@@ -1,20 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Dashboard } from "@/components/Dashboard";
 import { Sidebar } from "@/components/Sidebar";
+import { TelemetryProvider, useTelemetry } from "@/contexts/TelemetryContext";
 
-export default function Home() {
-  const [connected, setConnected] = useState(false);
+function HomeInner() {
   const [selectedTab, setSelectedTab] = useState<"overview" | "fusion" | "alloy" | "element" | "pkg">("overview");
-
-  useEffect(() => {
-    const ws = new WebSocket("ws://localhost:8080/ws");
-    ws.onopen = () => setConnected(true);
-    ws.onclose = () => setConnected(false);
-    ws.onerror = () => setConnected(false);
-    return () => ws.close();
-  }, []);
+  const { connected } = useTelemetry();
 
   return (
     <div className="flex h-screen bg-bg-primary grid-bg">
@@ -23,5 +16,13 @@ export default function Home() {
         <Dashboard tab={selectedTab} connected={connected} />
       </main>
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <TelemetryProvider>
+      <HomeInner />
+    </TelemetryProvider>
   );
 }
