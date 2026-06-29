@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTelemetry } from "@/contexts/TelemetryContext";
 import dynamic from "next/dynamic";
 import {
   TokensPerSecondChart,
@@ -61,6 +62,46 @@ function StatCard({ label, value, unit, color = "text-accent-cyan" }: {
   );
 }
 
+function HardwareStatusCard() {
+  const { connected, tpsData, diagnosticNodes, thermalData } = useTelemetry();
+
+  const hasRecentTps = tpsData.length > 0;
+  const hasSwarmNodes = diagnosticNodes.length > 0;
+  const hasAnalogData = thermalData.length > 0;
+
+  const modules: { label: string; status: "ONLINE" | "ACTIVE" | "IDLE" | "OFFLINE" }[] = [
+    { label: "Observer", status: connected ? "ONLINE" : "OFFLINE" },
+    { label: "FPGA Core", status: connected ? (hasRecentTps ? "ACTIVE" : "IDLE") : "OFFLINE" },
+    { label: "Swarm Mesh", status: connected ? (hasSwarmNodes ? "ACTIVE" : "IDLE") : "OFFLINE" },
+    { label: "Analog Array", status: connected ? (hasAnalogData ? "ACTIVE" : "IDLE") : "OFFLINE" },
+    { label: "CIM Array", status: connected ? "IDLE" : "OFFLINE" },
+    { label: "Neuromorphic", status: connected ? "IDLE" : "OFFLINE" },
+  ];
+
+  const statusStyle: Record<string, string> = {
+    ONLINE: "bg-accent-green/20 text-accent-green",
+    ACTIVE: "bg-accent-cyan/20 text-accent-cyan",
+    IDLE: "bg-bg-tertiary text-text-secondary",
+    OFFLINE: "bg-accent-red/20 text-accent-red",
+  };
+
+  return (
+    <div className="stat-card">
+      <h3 className="text-sm font-bold text-accent-amber mb-3">HARDWARE STATUS</h3>
+      <div className="space-y-2">
+        {modules.map(({ label, status }) => (
+          <div key={label} className="flex justify-between items-center">
+            <span className="text-sm">{label}</span>
+            <span className={`text-xs px-2 py-0.5 rounded ${statusStyle[status]}`}>
+              {status}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function OverviewDashboard() {
   return (
     <div className="space-y-6">
@@ -92,19 +133,7 @@ function OverviewDashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="stat-card">
-          <h3 className="text-sm font-bold text-accent-amber mb-3">HARDWARE STATUS</h3>
-          <div className="space-y-2">
-            {["FPGA Core", "Swarm Mesh", "Analog Array", "CIM Array", "Neuromorphic"].map((hw) => (
-              <div key={hw} className="flex justify-between items-center">
-                <span className="text-sm">{hw}</span>
-                <span className="text-xs px-2 py-0.5 rounded bg-accent-green/20 text-accent-green">
-                  ONLINE
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
+        <HardwareStatusCard />
 
         <div className="stat-card">
           <h3 className="text-sm font-bold text-accent-amber mb-3">RECENT ACTIVITY</h3>

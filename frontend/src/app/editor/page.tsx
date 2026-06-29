@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { useCallback, useRef, useState } from "react";
 import { useToast } from "@/components/Toast";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const IrGraphEditor = dynamic(
   () => import("@/components/IrGraphEditor").then((mod) => mod.IrGraphEditor),
@@ -78,6 +79,7 @@ export default function EditorPage() {
   }, []);
 
   return (
+    <ErrorBoundary>
     <div className="h-screen flex flex-col bg-bg-primary grid-bg">
       <div className="p-4 border-b border-border flex items-center justify-between">
         <div>
@@ -169,5 +171,6 @@ export default function EditorPage() {
         </div>
       </div>
     </div>
+    </ErrorBoundary>
   );
 }

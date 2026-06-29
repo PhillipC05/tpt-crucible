@@ -1,7 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import Link from "next/link";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 interface TournamentConstraints {
   maxLatencyMs: string;
@@ -225,7 +226,33 @@ export default function TournamentPage() {
 
   const paretoPoints = report?.pareto_points ?? [];
 
+  const exportJSON = useCallback(() => {
+    if (!report) return;
+    const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "tournament-report.json"; a.click();
+    URL.revokeObjectURL(url);
+  }, [report]);
+
+  const exportCSV = useCallback(() => {
+    if (!report) return;
+    const headers = ["target","quant_scheme","synthesis_mode","node_count","tokens_per_sec","latency_ms","power_watts","cost_usd","accuracy_delta","score","is_pareto","is_recommended"];
+    const rows = report.pareto_points.map((p) => [
+      p.target, p.quant_scheme, p.synthesis_mode, p.node_count,
+      p.tokens_per_sec, p.latency_ms, p.power_watts, p.cost_usd,
+      p.accuracy_delta, p.score, p.is_pareto, p.is_recommended,
+    ]);
+    const csv = [headers, ...rows].map((row) => row.join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "tournament-report.csv"; a.click();
+    URL.revokeObjectURL(url);
+  }, [report]);
+
   return (
+    <ErrorBoundary>
     <div className="min-h-screen bg-bg-primary text-text-primary p-6">
       <div className="max-w-5xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
@@ -432,9 +459,15 @@ export default function TournamentPage() {
                 )}
 
                 <div className="bg-bg-secondary border border-border rounded p-4">
-                  <h2 className="text-sm font-semibold text-accent-cyan uppercase tracking-wider mb-3">
-                    All Pareto-Optimal Configs ({paretoPoints.filter((p) => p.is_pareto).length})
-                  </h2>
+                  <div className="flex items-center justify-between mb-3">
+                    <h2 className="text-sm font-semibold text-accent-cyan uppercase tracking-wider">
+                      All Pareto-Optimal Configs ({paretoPoints.filter((p) => p.is_pareto).length})
+                    </h2>
+                    <div className="flex gap-2">
+                      <button onClick={exportJSON} className="px-2 py-1 rounded bg-bg-tertiary border border-border text-xs text-text-secondary hover:text-text-primary">Export JSON</button>
+                      <button onClick={exportCSV} className="px-2 py-1 rounded bg-bg-tertiary border border-border text-xs text-text-secondary hover:text-text-primary">Export CSV</button>
+                    </div>
+                  </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-xs font-mono">
                       <thead>
@@ -477,5 +510,6 @@ export default function TournamentPage() {
         </div>
       </div>
     </div>
+    </ErrorBoundary>
   );
 }

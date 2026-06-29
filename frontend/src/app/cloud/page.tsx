@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useToast } from "@/components/Toast";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 interface Job {
   id: string;
@@ -97,6 +98,7 @@ export default function CloudPage() {
   };
 
   return (
+    <ErrorBoundary>
     <div className="min-h-screen bg-bg-primary grid-bg p-6">
       <div className="max-w-5xl mx-auto space-y-6">
         <div>
@@ -230,5 +232,6 @@ export default function CloudPage() {
         </div>
       </div>
     </div>
+    </ErrorBoundary>
   );
 }

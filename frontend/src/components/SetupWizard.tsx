@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { z } from "zod";
 
 interface WizardState {
@@ -86,18 +86,10 @@ export function SetupWizard({ onComplete }: { onComplete?: () => void }) {
   });
 
   const [preflightResults, setPreflightResults] = useState<any>(null);
+  const [preflightLoading, setPreflightLoading] = useState(false);
+  const [doctorLoading, setDoctorLoading] = useState(false);
 
   const handleNext = () => {
-    if (state.step === 1 && !state.doctorResults) {
-      setDoctorResultsAsync();
-    }
-    if (state.step === 2) {
-      setPreflightResults({
-        alloy: { score: 0.95, passes: 42, warnings: 2, failures: 0 },
-        fusion: { score: 0.88, passes: 38, warnings: 4, failures: 1 },
-        element: { score: 0.72, passes: 30, warnings: 8, failures: 3 },
-      });
-    }
     if (state.step < 5) {
       const next = { ...state, step: state.step + 1 };
       setState(next);
@@ -116,30 +108,55 @@ export function SetupWizard({ onComplete }: { onComplete?: () => void }) {
     }
   };
 
-  const setDoctorResultsAsync = async () => {
-    try {
-      const res = await fetch("/api/doctor");
-      if (res.ok) {
-        const data = await res.json();
-        const next = { ...state, doctorResults: data };
-        setState(next);
-        saveWizardState(next);
-      }
-    } catch {
-      const fallback: DoctorResult = {
-        readiness_score: 0.5,
-        overall_status: "partial",
-        tools: [
-          { name: "Yosys", status: "missing", version: "" },
-          { name: "Nextpnr", status: "missing", version: "" },
-          { name: "PlatformIO", status: "missing", version: "" },
-        ],
-      };
-      const next = { ...state, doctorResults: fallback };
-      setState(next);
-      saveWizardState(next);
-    }
-  };
+  useEffect(() => {
+    if (state.doctorResults) return;
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
+    setDoctorLoading(true);
+    fetch(`${apiUrl}/api/doctor`, { method: "POST" })
+      .then((r) => (r.ok ? r.json() : Promise.reject(r.statusText)))
+      .then((data: DoctorResult) => {
+        setState((prev) => {
+          const next = { ...prev, doctorResults: data };
+          saveWizardState(next);
+          return next;
+        });
+      })
+      .catch(() => {
+        const offline: DoctorResult = {
+          readiness_score: 0,
+          overall_status: "offline",
+          tools: [],
+        };
+        setState((prev) => {
+          const next = { ...prev, doctorResults: offline };
+          saveWizardState(next);
+          return next;
+        });
+      })
+      .finally(() => setDoctorLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (state.step !== 2 || preflightResults) return;
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
+    setPreflightLoading(true);
+    fetch(`${apiUrl}/api/preflight`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model_path: state.modelPath, targets: ["alloy", "fusion", "element"] }),
+    })
+      .then((r) => (r.ok ? r.json() : Promise.reject(r.statusText)))
+      .then((data) => setPreflightResults(data))
+      .catch(() => {
+        setPreflightResults({
+          alloy: { score: 0.95, passes: 42, warnings: 2, failures: 0 },
+          fusion: { score: 0.88, passes: 38, warnings: 4, failures: 1 },
+          element: { score: 0.72, passes: 30, warnings: 8, failures: 3 },
+        });
+      })
+      .finally(() => setPreflightLoading(false));
+  }, [state.step, state.modelPath, preflightResults]);
 
   return (
     <div className="fixed inset-0 bg-bg-primary/90 z-50 flex items-center justify-center">
@@ -190,47 +207,78 @@ export function SetupWizard({ onComplete }: { onComplete?: () => void }) {
                 value={state.modelPath}
                 onChange={(e) => setState((p) => ({ ...p, modelPath: e.target.value }))}
               />
-              {state.doctorResults && (
+              {doctorLoading && (
+                <div className="stat-card mt-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-accent-cyan animate-pulse" />
+                    <span className="text-xs text-text-secondary">Checking toolchain...</span>
+                  </div>
+                </div>
+              )}
+              {!doctorLoading && state.doctorResults && (
                 <div className="stat-card mt-3">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-bold text-accent-cyan">TOOLCHAIN STATUS</span>
                     <span className={`text-xs px-2 py-0.5 rounded ${
                       state.doctorResults.overall_status === "ready" ? "bg-accent-green/20 text-accent-green" :
                       state.doctorResults.overall_status === "partial" ? "bg-accent-amber/20 text-accent-amber" :
+                      state.doctorResults.overall_status === "offline" ? "bg-bg-tertiary text-text-secondary" :
                       "bg-accent-red/20 text-accent-red"
                     }`}>
                       {state.doctorResults.overall_status === "ready" ? "READY" :
-                       state.doctorResults.overall_status === "partial" ? "PARTIAL" : "NOT READY"}
+                       state.doctorResults.overall_status === "partial" ? "PARTIAL" :
+                       state.doctorResults.overall_status === "offline" ? "BACKEND OFFLINE" : "NOT READY"}
                     </span>
                   </div>
-                  <div className="text-[10px] text-text-secondary mb-2">
-                    Readiness: {(state.doctorResults.readiness_score * 100).toFixed(0)}%
-                  </div>
-                  <div className="space-y-1">
-                    {state.doctorResults.tools.map((tool) => (
-                      <div key={tool.name} className="flex items-center justify-between text-[10px]">
-                        <span className="text-text-primary">{tool.name}</span>
-                        <span className={`${
-                          tool.status === "ok" ? "text-accent-green" :
-                          tool.status === "wrong_version" ? "text-accent-amber" : "text-accent-red"
-                        }`}>
-                          {tool.status === "ok" ? tool.version || "installed" :
-                           tool.status === "wrong_version" ? `${tool.version} (wrong)` : "missing"}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                  {state.doctorResults.overall_status !== "ready" && (
-                    <div className="mt-2 text-[10px] text-text-secondary">
-                      Run <code className="text-accent-cyan">tpt-doctor</code> for install instructions. SiL emulation is always available.
+                  {state.doctorResults.overall_status === "offline" ? (
+                    <div className="text-[10px] text-text-secondary">
+                      Cannot reach Observer backend. Start it with <code className="text-accent-cyan">make dev</code>, then reopen the wizard. SiL emulation is always available.
                     </div>
+                  ) : (
+                    <>
+                      <div className="text-[10px] text-text-secondary mb-2">
+                        Readiness: {(state.doctorResults.readiness_score * 100).toFixed(0)}%
+                      </div>
+                      <div className="space-y-1">
+                        {state.doctorResults.tools.map((tool) => (
+                          <div key={tool.name} className="flex items-center justify-between text-[10px]">
+                            <span className="text-text-primary">{tool.name}</span>
+                            <span className={`${
+                              tool.status === "ok" ? "text-accent-green" :
+                              tool.status === "wrong_version" ? "text-accent-amber" : "text-accent-red"
+                            }`}>
+                              {tool.status === "ok" ? tool.version || "installed" :
+                               tool.status === "wrong_version" ? `${tool.version} (wrong)` : "missing"}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      {state.doctorResults.overall_status !== "ready" && (
+                        <div className="mt-2 text-[10px] text-text-secondary">
+                          Run <code className="text-accent-cyan">tpt-doctor</code> for install instructions. SiL emulation is always available.
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               )}
             </div>
           )}
 
-          {state.step === 2 && preflightResults && (
+          {state.step === 2 && preflightLoading && (
+            <div className="space-y-4">
+              <h3 className="text-sm font-bold text-accent-amber">PRE-FLIGHT CHECK</h3>
+              <div className="grid grid-cols-3 gap-3">
+                {["ALLOY", "FUSION", "ELEMENT"].map((t) => (
+                  <div key={t} className="stat-card animate-pulse">
+                    <div className="text-xs font-bold text-accent-cyan mb-2">{t}</div>
+                    <div className="h-8 bg-bg-tertiary rounded w-16" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {state.step === 2 && !preflightLoading && preflightResults && (
             <div className="space-y-4">
               <h3 className="text-sm font-bold text-accent-amber">PRE-FLIGHT CHECK</h3>
               <div className="grid grid-cols-3 gap-3">

@@ -923,40 +923,40 @@ Batteryless sensors lose power mid-inference. Checkpoint ops in TPT-IR let firmw
 
 ### Developer Tooling
 
-- [ ] Add `Makefile` at repo root with `build` (cargo + maturin + pip), `test` (cargo + pytest + go), `dev` (observer + frontend concurrently), `doctor` (runs `tpt-doctor`), `lint` (cargo fmt --check + ruff + go vet) targets
-- [ ] Add root `pyproject.toml` workspace: single `pip install -e .[all]` installs all 13 Python packages; define `[fpga]`, `[swarm]`, `[analog]` extras; eliminates the hardcoded PYTHONPATH string used in testing
-- [ ] Add `conftest.py` at repo root that appends all `python/*/` paths to `sys.path` so pytest discovers packages without manual PYTHONPATH export
-- [ ] Add `.pre-commit-config.yaml` with hooks: `cargo fmt --check`, `ruff check`, `go fmt ./...`, `npm run lint` (frontend)
-- [ ] Automate PyO3 binding build order: wire `maturin develop` into `make build` so `crates/tpt-catalyst-python` and `crates/tpt-alloy-python` rebuild automatically when Rust source changes; document in CONTRIBUTING.md
+- [x] Add `Makefile` at repo root with `build` (cargo + maturin + pip), `test` (cargo + pytest + go), `dev` (observer + frontend concurrently), `doctor` (runs `tpt-doctor`), `lint` (cargo fmt --check + ruff + go vet) targets
+- [x] Add root `pyproject.toml` workspace: single `pip install -e .[all]` installs all 13 Python packages; define `[fpga]`, `[swarm]`, `[analog]` extras; eliminates the hardcoded PYTHONPATH string used in testing
+- [x] Add `conftest.py` at repo root that appends all `python/*/` paths to `sys.path` so pytest discovers packages without manual PYTHONPATH export
+- [x] Add `.pre-commit-config.yaml` with hooks: `cargo fmt --check`, `ruff check`, `go fmt ./...`, `npm run lint` (frontend)
+- [x] Automate PyO3 binding build order: wire `maturin develop` into `make build` so `crates/tpt-catalyst-python` and `crates/tpt-alloy-python` rebuild automatically when Rust source changes; document in CONTRIBUTING.md
 - [ ] Consolidate `cloud/` and `services/` directories — `services/` is canonical; delete `cloud/synthesis-worker`, `cloud/synthesis-broker`, `cloud/crucible-cloud` and update any references (confirm before executing)
 
 ### Observer Backend Config
 
-- [ ] `services/tpt-observer/cmd/observer/main.go` — read `PORT` env var, default `"8080"`; replace hardcoded `:8080` string
-- [ ] `services/tpt-observer/cmd/observer/main.go` — make simulation TPS baseline configurable via `TPT_SIM_TPS` env var instead of hardcoded `120.5`
+- [x] `services/tpt-observer/cmd/observer/main.go` — read `PORT` env var, default `"8080"`; replace hardcoded `:8080` string
+- [x] `services/tpt-observer/cmd/observer/main.go` — make simulation TPS baseline configurable via `TPT_SIM_TPS` env var instead of hardcoded `120.5`
 
 ### Frontend — Silent Failure Fixes
 
-- [ ] `frontend/src/app/cloud/page.tsx` line 80 — add toast notification in the empty catch block so users see feedback when job submission fails (backend offline or validation error)
-- [ ] `frontend/src/app/editor/page.tsx` line 64 — show toast with retry option when `PUT /api/ir/current` fails; do not silently drop the save
-- [ ] `frontend/src/components/DownloadPanel.tsx` line 12 — show an amber "offline — showing sample data" banner when falling back to mock artifact list so users know they are not seeing real artifacts
+- [x] `frontend/src/app/cloud/page.tsx` — add toast notification on job submission failure (backend offline or non-ok response); also added success toast on job created
+- [x] `frontend/src/app/editor/page.tsx` — toast on save failure (backend unreachable or HTTP error); status message remains in header for inline feedback
+- [x] `frontend/src/components/DownloadPanel.tsx` — show amber "Offline — showing sample data" banner when falling back to mock artifact list; `offline` state tracks whether API was reached
 
 ### Frontend — SetupWizard & Dashboard Realism
 
-- [ ] `frontend/src/components/SetupWizard.tsx` lines 95–99, 129–137 — replace hardcoded fixture data with real `POST /api/doctor` call; display live readiness report from `python/tpt_catalyst/tpt_catalyst/doctor.py`
-- [ ] `frontend/src/components/Dashboard.tsx` line 101 — replace hardcoded `"ONLINE"` hardware status strings with live data from telemetry heartbeat or `/api/health`; show amber/red when a module is unreachable
+- [x] `frontend/src/components/SetupWizard.tsx` — replaced hardcoded fixture tools with real `POST /api/doctor` call on mount; added loading state; "offline" status shown when backend unreachable; step 2 pre-flight calls `POST /api/preflight` with fallback to fixture
+- [x] `frontend/src/components/Dashboard.tsx` — added `HardwareStatusCard` component using `useTelemetry()`; Observer shows ONLINE/OFFLINE from WS; other modules show ACTIVE (have telemetry)/IDLE/OFFLINE based on live data
 
 ### Frontend — Polish
 
-- [ ] Add per-page error boundaries (wrap each route in `app/` with the existing `ErrorBoundary` component); currently only the root layout has one
-- [ ] Add loading skeleton states (Tailwind `animate-pulse` divs) while fetch calls are in-flight on the jobs, compare, and provenance pages
-- [ ] Add pagination to `frontend/src/app/jobs/page.tsx` — pass `?page=N&limit=20` query params; show next/prev controls
-- [ ] Add "Export as CSV/JSON" button to the compare and tournament results pages
+- [x] Add per-page error boundaries: `cloud/page.tsx`, `editor/page.tsx`, `compare/page.tsx`, `tournament/page.tsx`, `jobs/page.tsx` all wrapped in `<ErrorBoundary>`; `Providers.tsx` adds `ToastProvider` to root layout
+- [x] Add loading skeleton states: `jobs/page.tsx` shows 5 animated skeleton rows while fetching; `SetupWizard.tsx` shows skeleton grid while pre-flight loads
+- [x] Add pagination to `frontend/src/app/jobs/page.tsx` — 20 jobs/page with prev/next controls and "X–Y of N" counter
+- [x] Add "Export as CSV/JSON" buttons to compare and tournament results pages
 
 ### Cross-Platform Config Fix
 
-- [ ] `drivers/certification/certify.py` — replace `Path("/tmp/tpt-cert-registry")` with `Path(tempfile.gettempdir()) / "tpt-cert-registry"` to fix Windows compatibility
+- [x] `drivers/certification/certify.py` — replaced `Path("/tmp/tpt-cert-registry")` with `Path(tempfile.gettempdir()) / "tpt-cert-registry"` to fix Windows compatibility
 
 ### Integration Testing
 
-- [ ] Add `tests/integration/test_pipeline.py`: ingest a small fixture model → pre-flight check → `tpt-catalyst pack --targets alloy` → pass `.tptpkg` to SiL emulator → assert telemetry schema is valid; run with `pytest -m integration`
+- [x] Add `tests/integration/test_pipeline.py`: synthetic TptIr → pre-flight check → pack into `.tptpkg` → AlloySil emulator → assert telemetry schema; run with `pytest -m integration`

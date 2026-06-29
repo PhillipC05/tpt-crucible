@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 interface Constraints {
   maxLatencyMs: string;
@@ -194,7 +195,35 @@ export default function ComparePage() {
     ? [...report.results].sort((a, b) => b.tokens_per_sec - a.tokens_per_sec)
     : [];
 
+  const exportJSON = useCallback(() => {
+    if (!report) return;
+    const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "compare-report.json"; a.click();
+    URL.revokeObjectURL(url);
+  }, [report]);
+
+  const exportCSV = useCallback(() => {
+    if (!report) return;
+    const headers = ["target","tokens_per_sec","latency_ms_per_token","power_watts","cost_usd_hardware","cost_usd_per_inference","carbon_gco2_per_inference","accuracy_delta","meets_constraints","is_pareto","is_recommended"];
+    const rows = report.results.map((r) => [
+      r.target, r.tokens_per_sec, r.latency_ms_per_token, r.power_watts,
+      r.cost_usd_hardware, r.cost_usd_per_inference, r.carbon_gco2_per_inference,
+      r.accuracy_delta, r.meets_constraints,
+      report.pareto_front.includes(r.target),
+      r.target === report.recommended_target,
+    ]);
+    const csv = [headers, ...rows].map((row) => row.join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "compare-report.csv"; a.click();
+    URL.revokeObjectURL(url);
+  }, [report]);
+
   return (
+    <ErrorBoundary>
     <div className="min-h-screen bg-bg-primary grid-bg p-6">
       <div className="max-w-5xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
@@ -348,12 +377,17 @@ export default function ComparePage() {
               </div>
             </div>
 
-            <div className="text-[10px] text-text-secondary text-right">
-              Generated: {report.generated_at} · {report.results.filter((r) => r.sil_used).length} SiL runs, {report.results.filter((r) => !r.sil_used).length} profile-based estimates
+            <div className="flex items-center justify-between text-[10px] text-text-secondary">
+              <span>Generated: {report.generated_at} · {report.results.filter((r) => r.sil_used).length} SiL runs, {report.results.filter((r) => !r.sil_used).length} profile-based estimates</span>
+              <div className="flex gap-2">
+                <button onClick={exportJSON} className="px-2 py-1 rounded bg-bg-tertiary border border-border hover:text-text-primary">Export JSON</button>
+                <button onClick={exportCSV} className="px-2 py-1 rounded bg-bg-tertiary border border-border hover:text-text-primary">Export CSV</button>
+              </div>
             </div>
           </>
         )}
       </div>
     </div>
+    </ErrorBoundary>
   );
 }
