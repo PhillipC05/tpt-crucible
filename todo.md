@@ -863,7 +863,7 @@ Batteryless sensors lose power mid-inference. Checkpoint ops in TPT-IR let firmw
 
 ### Feature 1 — Cross-Hardware Benchmark Comparison Report
 
-- [ ] `python/tpt_catalyst/tpt_catalyst/compare.py` — `ComparisonConfig` dataclass (targets list, constraint budget); `ComparisonRunner.run()` orchestrates SiL runs per target via `tpt-emulate`; `ComparisonReport` dataclass (per-target: tokens_sec, power_mw, cost_per_inference, carbon_gco2, accuracy_delta); `select_recommended()` picks best fit given constraints
+- [x] `python/tpt_catalyst/tpt_catalyst/compare.py` — `ComparisonConfig` dataclass (targets list, constraint budget); `ComparisonRunner.run()` orchestrates SiL runs per target via `tpt-emulate`; `ComparisonReport` dataclass (per-target: tokens_sec, power_mw, cost_per_inference, carbon_gco2, accuracy_delta); `select_recommended()` picks best fit given constraints
 - [ ] Add `compare/report.json` as optional artifact written into `.tptpkg` by `PackageBuilder`
 - [ ] CLI: `tpt-catalyst compare <model.tptir> --targets all|alloy,fusion,element --max-latency Xms --max-power XW`
 - [ ] `frontend/src/app/compare/` — comparison page: interactive 3-axis Pareto scatter (accuracy × tokens/sec × cost/inference); "Recommended" banner; per-target detail cards with BOM link

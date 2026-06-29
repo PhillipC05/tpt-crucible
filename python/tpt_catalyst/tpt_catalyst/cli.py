@@ -75,8 +75,38 @@ def main() -> None:
     diagnose_cmd.add_argument("--hardware", default="alloy", choices=["alloy", "fusion", "element"], help="Hardware to diagnose")
     diagnose_cmd.add_argument("-o", "--output", type=Path, help="Save results to JSON")
 
+    provenance_cmd = sub.add_parser("provenance", help="Show compilation lineage for a .tptpkg")
+    provenance_cmd.add_argument("tptpkg", type=Path, help="Path to .tptpkg directory")
+    provenance_cmd.add_argument("--diff", type=Path, metavar="OTHER_TPTPKG", help="Diff lineage against another package")
+    provenance_cmd.add_argument("--json", action="store_true", help="Output as JSON")
+
     smoke_cmd = sub.add_parser("smoke-test", help="Run end-to-end smoke test")
     smoke_cmd.add_argument("--target", default="all", choices=["alloy", "fusion", "element", "all"], help="Hardware target to test")
+
+    tournament_cmd = sub.add_parser("tournament", help="Sweep optimization space and build Pareto frontier")
+    tournament_cmd.add_argument("tptir", type=Path, help="Path to .tptir file")
+    tournament_cmd.add_argument("--targets", type=str, default="alloy,fusion,element", help="Comma-separated targets")
+    tournament_cmd.add_argument("--max-latency", type=float, metavar="MS", help="Max latency constraint (ms/token)")
+    tournament_cmd.add_argument("--max-power", type=float, metavar="W", help="Max power constraint (W)")
+    tournament_cmd.add_argument("--max-cost", type=float, metavar="USD", help="Max hardware cost (USD)")
+    tournament_cmd.add_argument("--min-accuracy", type=float, metavar="FRAC", help="Min accuracy (e.g. 0.95)")
+    tournament_cmd.add_argument("--carbon-region", default="global_avg", help="Carbon grid region")
+    tournament_cmd.add_argument("--quant-schemes", type=str, default="int4,int8,float", help="Quantization schemes to sweep")
+    tournament_cmd.add_argument("--synth-modes", type=str, default="overlay,full", help="Synthesis modes to sweep")
+    tournament_cmd.add_argument("--node-counts", type=str, default="8,16,32", help="Node counts to sweep (Alloy only)")
+    tournament_cmd.add_argument("-o", "--output", type=Path, help="Save report to JSON file")
+
+    compare_cmd = sub.add_parser("compare", help="Run cross-hardware benchmark comparison")
+    compare_cmd.add_argument("tptir", type=Path, help="Path to .tptir file")
+    compare_cmd.add_argument("--targets", type=str, default="all", help="Comma-separated targets or 'all'")
+    compare_cmd.add_argument("--max-latency", type=float, metavar="MS", help="Maximum acceptable latency (ms/token)")
+    compare_cmd.add_argument("--max-power", type=float, metavar="W", help="Maximum acceptable power (watts)")
+    compare_cmd.add_argument("--max-cost", type=float, metavar="USD", help="Maximum hardware cost (USD)")
+    compare_cmd.add_argument("--min-accuracy", type=float, metavar="FRAC", help="Minimum accuracy fraction (e.g. 0.95)")
+    compare_cmd.add_argument("--carbon-region", default="global_avg", help="Carbon grid region")
+    compare_cmd.add_argument("--inferences-per-day", type=int, default=1000, help="Expected daily inference count for cost amortization")
+    compare_cmd.add_argument("--no-sil", action="store_true", help="Skip SiL runs; use profile-based estimates only")
+    compare_cmd.add_argument("-o", "--output", type=Path, help="Save report to JSON file")
 
     args = parser.parse_args()
 
@@ -333,6 +363,77 @@ def main() -> None:
                 import shutil
                 shutil.copytree(args.tptpkg, args.output, dirs_exist_ok=True)
                 print(f"Extracted to {args.output}")
+
+    elif args.command == "provenance":
+        from .provenance import ProvenanceGraph
+        lineage_path = args.tptpkg / "provenance" / "lineage.json"
+        if not lineage_path.exists():
+            print(f"No provenance data found in {args.tptpkg}")
+            print("  (provenance tracking is available for packages compiled with tpt-catalyst 0.1.0+)")
+            sys.exit(0)
+        graph = ProvenanceGraph.from_file(lineage_path)
+        if getattr(args, "json", False):
+            print(graph.to_json())
+        else:
+            graph.print_tree()
+            print(f"\nTotal accuracy delta: {graph.total_accuracy_delta:+.4%}")
+        if hasattr(args, "diff") and args.diff:
+            other_path = args.diff / "provenance" / "lineage.json"
+            if not other_path.exists():
+                print(f"No provenance data in {args.diff}")
+            else:
+                other = ProvenanceGraph.from_file(other_path)
+                diff_steps = graph.diff(other)
+                print(f"\nSteps in {args.diff.name} not in {args.tptpkg.name}:")
+                for step in diff_steps:
+                    print(f"  [{step['step_type']}] {step['step_id'][:8]}… — {step.get('notes', '')}")
+
+    elif args.command == "tournament":
+        from .tournament import TournamentRunner, TournamentConfig, TournamentConstraints
+        config = TournamentConfig(
+            targets=[t.strip() for t in args.targets.split(",")],
+            quantization_schemes=[q.strip() for q in args.quant_schemes.split(",")],
+            synthesis_modes=[s.strip() for s in args.synth_modes.split(",")],
+            node_counts=[int(n.strip()) for n in args.node_counts.split(",")],
+        )
+        constraints = TournamentConstraints(
+            max_latency_ms=args.max_latency,
+            max_power_w=args.max_power,
+            max_cost_usd=args.max_cost,
+            min_accuracy=args.min_accuracy,
+            carbon_region=args.carbon_region,
+        )
+        runner = TournamentRunner(config=config, verbose=True)
+        print(f"Running compilation tournament ({runner.config.targets})...")
+        report = runner.run(args.tptir, constraints)
+        report.print_table()
+        if args.output:
+            args.output.write_text(report.to_json())
+            print(f"\nReport saved to {args.output}")
+
+    elif args.command == "compare":
+        from .compare import ComparisonRunner, ComparisonConstraints
+        from .compare import _SUPPORTED_TARGETS
+
+        target_list = (
+            _SUPPORTED_TARGETS
+            if args.targets == "all"
+            else [t.strip() for t in args.targets.split(",")]
+        )
+        constraints = ComparisonConstraints(
+            max_latency_ms=args.max_latency,
+            max_power_w=args.max_power,
+            max_cost_usd=args.max_cost,
+            min_accuracy=args.min_accuracy,
+            carbon_region=args.carbon_region,
+            inferences_per_day=args.inferences_per_day,
+        )
+        runner = ComparisonRunner(targets=target_list, use_sil=not args.no_sil)
+        report = runner.run(args.tptir, constraints)
+        report.print_table()
+        if args.output:
+            args.output.write_text(report.to_json())
+            print(f"\nReport saved to {args.output}")
 
     elif args.command == "doctor":
         from .doctor import run_doctor, print_report
