@@ -864,56 +864,55 @@ Batteryless sensors lose power mid-inference. Checkpoint ops in TPT-IR let firmw
 ### Feature 1 — Cross-Hardware Benchmark Comparison Report
 
 - [x] `python/tpt_catalyst/tpt_catalyst/compare.py` — `ComparisonConfig` dataclass (targets list, constraint budget); `ComparisonRunner.run()` orchestrates SiL runs per target via `tpt-emulate`; `ComparisonReport` dataclass (per-target: tokens_sec, power_mw, cost_per_inference, carbon_gco2, accuracy_delta); `select_recommended()` picks best fit given constraints
-- [ ] Add `compare/report.json` as optional artifact written into `.tptpkg` by `PackageBuilder`
-- [ ] CLI: `tpt-catalyst compare <model.tptir> --targets all|alloy,fusion,element --max-latency Xms --max-power XW`
-- [ ] `frontend/src/app/compare/` — comparison page: interactive 3-axis Pareto scatter (accuracy × tokens/sec × cost/inference); "Recommended" banner; per-target detail cards with BOM link
+- [x] Add `compare/report.json` as optional artifact written into `.tptpkg` by `PackageBuilder`
+- [x] CLI: `tpt-catalyst compare <model.tptir> --targets all|alloy,fusion,element --max-latency Xms --max-power XW`
+- [x] `frontend/src/app/compare/page.tsx` — comparison page: interactive Pareto scatter (canvas-based, TPS × latency); "Recommended" banner; per-target detail cards; "Compile" link to `/cloud?target=X`
 - [ ] Add "Compare All Targets" button to Observer dashboard and cloud compilation flow
 - [ ] Community cache integration: call `CommunityCache.lookup()` before each SiL run to skip redundant synthesis
 
 ### Feature 2 — Compilation Tournament / Pareto Optimizer
 
-- [ ] `python/tpt_catalyst/tpt_catalyst/tournament.py` — `TournamentConfig` (model_path, constraint_budget: latency/power/cost/accuracy); `SearchSpace` (quantization schemes × targets × topology variants × synthesis modes); `TournamentRunner.run()` sweeps configs, collects SiL metrics, builds Pareto set; `ParetoPoint` dataclass
-- [ ] CLI: `tpt-catalyst tournament <model.tptir> --max-latency 50ms --max-power 5W --min-accuracy 0.90`
-- [ ] `frontend/src/app/tournament/` — interactive 3D Pareto frontier scatter; hover to inspect config; "Compile with this config" one-click action that pre-fills cloud compilation form
+- [x] `python/tpt_catalyst/tpt_catalyst/tournament.py` — `TournamentConfig`; `TournamentRunner.run()` sweeps quant × target × synthesis × node_count; `ParetoPoint` dataclass; Pareto front computation; recommended config selection
+- [x] CLI: `tpt-catalyst tournament <model.tptir> --max-latency 50ms --max-power 5W --min-accuracy 0.90`
+- [ ] `frontend/src/app/tournament/` — interactive Pareto scatter UI (pending)
 - [ ] Persist tournament results to `tournament/results.json` in `.tptpkg`
 
 ### Feature 3 — Telemetry Anomaly Detection + Predictive Maintenance
 
-- [ ] `python/tpt_drivers/tpt_drivers/anomaly.py` — `AnomalyDetector` class using isolation forest on sliding telemetry window (thermal, bandwidth, latency per node); `AnomalyAlert` dataclass (node_id, metric, severity: warn|critical, predicted_tta_minutes, suggested_action); ships pre-trained checkpoint trained on SiL-generated telemetry; auto-retrains when live data exceeds 5,000 samples
-- [ ] `services/tpt-observer/internal/anomaly/` — Go service: subscribes to `TelemetryStore`, runs detector via Python subprocess or embedded model, emits `anomaly_alert` WebSocket events
-- [ ] Observer UI: amber/red pulsing overlay on affected nodes in 3D topology view; alert feed in Sidebar; "Graceful rebalance now" one-click action (triggers Alloy partition rebalance excluding failing node)
-- [ ] Settings page: anomaly detection toggle + configurable severity thresholds per metric
+- [x] `python/tpt_drivers/tpt_drivers/anomaly.py` — `AnomalyDetector` with sliding-window analysis; `AnomalyAlert` dataclass (node_id, metric, severity: warn|critical, predicted_tta_minutes, suggested_action); thermal slope regression for TTA estimation; per-metric threshold checks (thermal, latency, bandwidth, analog drift)
+- [ ] `services/tpt-observer/internal/anomaly/` — Go subscriber (pending)
+- [ ] Observer UI: amber/red pulsing overlay on affected nodes (pending)
+- [ ] Settings page: anomaly detection toggle (pending)
 
 ### Feature 4 — Live Adaptive Recompilation ("Self-Healing" Deployments)
 
-- [ ] `python/tpt_catalyst/tpt_catalyst/adaptive.py` — `AdaptiveThresholds` dataclass (analog_drift_pct, latency_degradation_pct, thermal_delta_c); `AdaptiveRecompiler.watch(tptpkg, thresholds)` subscribes to telemetry WebSocket, identifies affected layers when threshold crossed, triggers `tpt-catalyst pack --incremental` scoped to those layers, hands result to OTA pipeline
-- [ ] `services/tpt-observer/internal/adaptive/` — Go dispatcher: receives anomaly alerts, evaluates against adaptive thresholds, enqueues incremental recompile job, streams recompile progress as `healing_progress` WebSocket events
-- [ ] Observer UI: "Healing" animated badge on affected nodes during recompile; timeline log of all healing events; configurable thresholds in Settings page under new "Adaptive Recompilation" section
-- [ ] Requires hot recompilation cache (`tpt-catalyst pack --incremental`, already built) — wire as the trigger
+- [x] `python/tpt_catalyst/tpt_catalyst/adaptive.py` — `AdaptiveThresholds`; `AdaptiveRecompiler`: background thread watches telemetry, identifies affected layers from partition.json, triggers `tpt-catalyst pack --incremental`, calls `tpt-alloy ota`; `HealingEvent` log with status tracking
+- [ ] `services/tpt-observer/internal/adaptive/` — Go dispatcher (pending)
+- [ ] Observer UI: "Healing" badge (pending)
 
 ### Feature 5 — Hardware REPL (`python/tpt_shell/`)
 
-- [ ] `python/tpt_shell/` package scaffold (pyproject.toml + `tpt-shell` entry point)
-- [ ] `python/tpt_shell/tpt_shell/session.py` — `ShellSession`: connects to live hardware or SiL via WebSocket; commands: `run_layer <id> <input_json>` (execute single layer, return tensor output), `inspect <tensor_id>` (show shape/dtype/values), `telemetry snapshot` (dump current metrics), `diff <layer_id> <input_a> <input_b>` (compare outputs), `help`
-- [ ] `python/tpt_shell/tpt_shell/repl.py` — REPL loop using `prompt_toolkit`; syntax highlighting for TPT-IR op names; tab completion for layer IDs from loaded `.tptpkg`
-- [ ] Alloy firmware generator: add `TPT_DEBUG_MODE` compile-time flag enabling single-layer execute command over UART (uses existing `tpt_run_layer()` function)
-- [ ] Observer UI: clicking any node in IR Graph Editor opens an embedded shell panel pre-scoped to that layer's ID
-- [ ] CLI: `tpt-shell <model.tptpkg> [--hardware alloy|fusion|element|sil] [--node <ip>]`
+- [x] `python/tpt_shell/` package scaffold (pyproject.toml + `tpt-shell` entry point)
+- [x] `python/tpt_shell/tpt_shell/session.py` — `ShellSession`: WebSocket connection; `run_layer`, `inspect`, `telemetry_snapshot`, `diff` async methods; layer ID discovery from `.tptpkg/ir/model.tptir`
+- [x] `python/tpt_shell/tpt_shell/repl.py` — `prompt_toolkit` REPL loop; tab completion for layer IDs; all commands implemented
+- [x] CLI: `tpt-shell <model.tptpkg> [--hardware alloy|fusion|element|sil] [--node <ip>] [--layer <id>]`
+- [ ] Alloy firmware: `TPT_DEBUG_MODE` flag (pending firmware generator update)
+- [ ] Observer UI: node-click → embedded shell panel (pending)
 
 ### Feature 6 — Model Lineage & Provenance Graph
 
-- [ ] `python/tpt_catalyst/tpt_catalyst/provenance.py` — `ProvenanceNode` dataclass (step_id, step_type, params_hash, timestamp, triggered_by, accuracy_delta, notes); `ProvenanceGraph` DAG with `append_step()` and `to_json()`; serialized to `provenance/lineage.json` inside `.tptpkg`
-- [ ] Wire provenance recording into every pipeline stage: ingest, TVM optimize, pre-flight fix (each operator substitution), quantize, pack — each appends a `ProvenanceNode`
-- [ ] `frontend/src/app/provenance/` — interactive DAG view with timeline scrubber; click any node to expand params; side-by-side diff of two `.tptpkg` lineage graphs ("why did this package differ from the last?")
-- [ ] CLI: `tpt-catalyst provenance <model.tptpkg>` — prints lineage as formatted tree
-- [ ] Add `provenance_root: Option<String>` (SHA-256 of lineage.json) to `PackageManifest` in `crates/tpt-catalyst/src/package.rs`
+- [x] `python/tpt_catalyst/tpt_catalyst/provenance.py` — `ProvenanceNode`; `ProvenanceGraph` DAG with `append_step()`, `to_json()`, `from_file()`, `print_tree()`, `diff()`; serialized to `provenance/lineage.json`; `graph_for_model()` factory; `StepType` enum covering all pipeline stages
+- [x] CLI: `tpt-catalyst provenance <model.tptpkg>` — prints lineage tree + diff against another package
+- [ ] Wire `append_step()` calls into ingest, optimize, quantize, pack pipeline stages
+- [ ] `frontend/src/app/provenance/` — interactive DAG view (pending)
+- [ ] Add `provenance_root` to `PackageManifest` in `crates/tpt-catalyst/src/package.rs`
 
 ### Feature 7 — Federated Learning Orchestration (`python/tpt_fl/`)
 
-- [ ] `python/tpt_fl/` package scaffold (pyproject.toml + `tpt-fl` entry point)
-- [ ] `python/tpt_fl/tpt_fl/config.py` — `FederatedConfig` dataclass (draft_pkg, data_sources: list[str], strategy: fedavg|fedprox, rounds, min_participants, gradient_compression: none|topk|quantized)
-- [ ] `python/tpt_fl/tpt_fl/orchestrator.py` — `FLOrchestrator.run()`: dispatch training round to each participant via Mosaic bridge, collect compressed gradients, aggregate (FedAvg: weighted average by dataset size), trigger `tpt-catalyst pack --incremental` with updated weights, OTA-flash updated package to all nodes
-- [ ] Alloy firmware generator: add `TPT_FL_MODE` build flag enabling gradient accumulation in SRAM after each inference batch + upload via WiFi on round completion signal
-- [ ] `python/tpt_fl/tpt_fl/compression.py` — `GradientCompressor`: top-K sparsification (keep top K% largest gradients by magnitude), error feedback accumulation for convergence
-- [ ] Observer UI: FL round progress panel (round N/N, participant count, loss delta per round, next recompile ETA); per-node gradient contribution heatmap
-- [ ] CLI: `tpt-fl train <model.tptpkg> --data-sources 192.168.1.10,192.168.1.11 --rounds 10 --strategy fedavg`
+- [x] `python/tpt_fl/` package scaffold (pyproject.toml + `tpt-fl` entry point)
+- [x] `python/tpt_fl/tpt_fl/config.py` — `FederatedConfig` with strategy, rounds, compression, min_participants, local_epochs, lr, batch_size, recompile_after_rounds
+- [x] `python/tpt_fl/tpt_fl/orchestrator.py` — `FLOrchestrator.run()`: per-round gradient collection, FedAvg/FedProx aggregation, global weight update, push to nodes, incremental recompile + OTA every N rounds; `RoundMetrics` + `FLSession` dataclasses
+- [x] `python/tpt_fl/tpt_fl/compression.py` — `GradientCompressor`: top-K sparsification with error-feedback residual accumulation; `CompressedGradient` with `decompress()`
+- [x] CLI: `tpt-fl train <model.tptpkg> --data-sources 192.168.1.10,192.168.1.11 --rounds 10 --strategy fedavg`
+- [ ] Alloy firmware: `TPT_FL_MODE` build flag (pending firmware generator update)
+- [ ] Observer UI: FL round progress panel (pending)
