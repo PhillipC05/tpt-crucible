@@ -15,7 +15,7 @@ Thank you for your interest in contributing to TPT Crucible!
 
 ```bash
 # Clone the repo
-git clone https://github.com/tpt-solutions/tpt-crucible.git
+git clone https://github.com/PhillipC05/tpt-crucible.git
 cd tpt-crucible
 
 # Build Rust crates
