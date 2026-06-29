@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/tpt-crucible/tpt-observer/internal/telemetry"
@@ -19,8 +21,12 @@ func main() {
 	http.HandleFunc("/api/telemetry", telemetryHandler)
 	http.HandleFunc("/api/telemetry/tps", tpsHandler)
 
-	log.Println("TPT Observer starting on :8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	log.Printf("TPT Observer starting on :%s", port)
+	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
 
 func healthHandler(w http.ResponseWriter, r *http.Request) {
@@ -55,11 +61,17 @@ func init() {
 }
 
 func simulateTelemetry() {
+	simTPS := 120.5
+	if v := os.Getenv("TPT_SIM_TPS"); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			simTPS = f
+		}
+	}
 	ticker := time.NewTicker(time.Second)
 	for range ticker.C {
 		tps := telemetry.TokensPerSecond{
 			Timestamp: time.Now(),
-			TPS:       120.5,
+			TPS:       simTPS,
 		}
 		ws.Store.RecordTPS(tps)
 	}

@@ -916,3 +916,47 @@ Batteryless sensors lose power mid-inference. Checkpoint ops in TPT-IR let firmw
 - [x] CLI: `tpt-fl train <model.tptpkg> --data-sources 192.168.1.10,192.168.1.11 --rounds 10 --strategy fedavg`
 - [ ] Alloy firmware: `TPT_FL_MODE` build flag (pending firmware generator update)
 - [ ] Observer UI: FL round progress panel (pending)
+
+---
+
+## Platform Improvements — Usability & Automation
+
+### Developer Tooling
+
+- [ ] Add `Makefile` at repo root with `build` (cargo + maturin + pip), `test` (cargo + pytest + go), `dev` (observer + frontend concurrently), `doctor` (runs `tpt-doctor`), `lint` (cargo fmt --check + ruff + go vet) targets
+- [ ] Add root `pyproject.toml` workspace: single `pip install -e .[all]` installs all 13 Python packages; define `[fpga]`, `[swarm]`, `[analog]` extras; eliminates the hardcoded PYTHONPATH string used in testing
+- [ ] Add `conftest.py` at repo root that appends all `python/*/` paths to `sys.path` so pytest discovers packages without manual PYTHONPATH export
+- [ ] Add `.pre-commit-config.yaml` with hooks: `cargo fmt --check`, `ruff check`, `go fmt ./...`, `npm run lint` (frontend)
+- [ ] Automate PyO3 binding build order: wire `maturin develop` into `make build` so `crates/tpt-catalyst-python` and `crates/tpt-alloy-python` rebuild automatically when Rust source changes; document in CONTRIBUTING.md
+- [ ] Consolidate `cloud/` and `services/` directories — `services/` is canonical; delete `cloud/synthesis-worker`, `cloud/synthesis-broker`, `cloud/crucible-cloud` and update any references (confirm before executing)
+
+### Observer Backend Config
+
+- [ ] `services/tpt-observer/cmd/observer/main.go` — read `PORT` env var, default `"8080"`; replace hardcoded `:8080` string
+- [ ] `services/tpt-observer/cmd/observer/main.go` — make simulation TPS baseline configurable via `TPT_SIM_TPS` env var instead of hardcoded `120.5`
+
+### Frontend — Silent Failure Fixes
+
+- [ ] `frontend/src/app/cloud/page.tsx` line 80 — add toast notification in the empty catch block so users see feedback when job submission fails (backend offline or validation error)
+- [ ] `frontend/src/app/editor/page.tsx` line 64 — show toast with retry option when `PUT /api/ir/current` fails; do not silently drop the save
+- [ ] `frontend/src/components/DownloadPanel.tsx` line 12 — show an amber "offline — showing sample data" banner when falling back to mock artifact list so users know they are not seeing real artifacts
+
+### Frontend — SetupWizard & Dashboard Realism
+
+- [ ] `frontend/src/components/SetupWizard.tsx` lines 95–99, 129–137 — replace hardcoded fixture data with real `POST /api/doctor` call; display live readiness report from `python/tpt_catalyst/tpt_catalyst/doctor.py`
+- [ ] `frontend/src/components/Dashboard.tsx` line 101 — replace hardcoded `"ONLINE"` hardware status strings with live data from telemetry heartbeat or `/api/health`; show amber/red when a module is unreachable
+
+### Frontend — Polish
+
+- [ ] Add per-page error boundaries (wrap each route in `app/` with the existing `ErrorBoundary` component); currently only the root layout has one
+- [ ] Add loading skeleton states (Tailwind `animate-pulse` divs) while fetch calls are in-flight on the jobs, compare, and provenance pages
+- [ ] Add pagination to `frontend/src/app/jobs/page.tsx` — pass `?page=N&limit=20` query params; show next/prev controls
+- [ ] Add "Export as CSV/JSON" button to the compare and tournament results pages
+
+### Cross-Platform Config Fix
+
+- [ ] `drivers/certification/certify.py` — replace `Path("/tmp/tpt-cert-registry")` with `Path(tempfile.gettempdir()) / "tpt-cert-registry"` to fix Windows compatibility
+
+### Integration Testing
+
+- [ ] Add `tests/integration/test_pipeline.py`: ingest a small fixture model → pre-flight check → `tpt-catalyst pack --targets alloy` → pass `.tptpkg` to SiL emulator → assert telemetry schema is valid; run with `pytest -m integration`

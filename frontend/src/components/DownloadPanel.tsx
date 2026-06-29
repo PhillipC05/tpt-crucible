@@ -26,9 +26,10 @@ function formatBytes(bytes: number): string {
 
 export function DownloadPanel({ packageId }: { packageId?: string }) {
   const [items, setItems] = useState<DownloadItem[]>(SAMPLE_DOWNLOADS);
+  const [offline, setOffline] = useState(!packageId);
 
   useEffect(() => {
-    if (!packageId) return;
+    if (!packageId) { setOffline(true); return; }
     const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
     fetch(`${apiUrl}/api/packages/${packageId}/artifacts`)
       .then((r) => r.json())
@@ -42,6 +43,7 @@ export function DownloadPanel({ packageId }: { packageId?: string }) {
           if (p.endsWith(".spice")) return "SPICE";
           return "File";
         };
+        setOffline(false);
         setItems(
           artifacts.map((a) => ({
             filename: a.path,
@@ -51,12 +53,18 @@ export function DownloadPanel({ packageId }: { packageId?: string }) {
           }))
         );
       })
-      .catch(() => {});
+      .catch(() => setOffline(true));
   }, [packageId]);
 
   return (
     <div className="stat-card">
       <h3 className="text-sm font-bold text-accent-cyan mb-3">DOWNLOADS</h3>
+      {offline && (
+        <div className="flex items-center gap-2 mb-3 px-2 py-1.5 rounded bg-accent-amber/10 border border-accent-amber/30">
+          <span className="text-accent-amber text-xs">⚠</span>
+          <span className="text-xs text-accent-amber">Offline — showing sample data</span>
+        </div>
+      )}
       <div className="space-y-1">
         {items.map((item) => (
           <a

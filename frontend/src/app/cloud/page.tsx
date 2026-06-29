@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useToast } from "@/components/Toast";
 
 interface Job {
   id: string;
@@ -37,6 +38,7 @@ function validateFile(file: File): string | null {
 }
 
 export default function CloudPage() {
+  const { toast } = useToast();
   const [uploading, setUploading] = useState(false);
   const [selectedTarget, setSelectedTarget] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -76,8 +78,13 @@ export default function CloudPage() {
       if (res.ok) {
         const job: Job = await res.json();
         setJobs((prev) => [job, ...prev]);
+        toast("Compilation job submitted", "success");
+      } else {
+        toast(`Job submission failed: ${res.statusText}`, "error");
       }
-    } catch { /* backend may be offline — show a toast in future */ }
+    } catch {
+      toast("Backend unreachable — job not submitted", "error");
+    }
     setUploading(false);
     setSelectedFile(null);
   }, [selectedFile, selectedTarget, apiUrl]);

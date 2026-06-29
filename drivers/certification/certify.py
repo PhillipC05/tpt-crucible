@@ -23,6 +23,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -35,7 +36,7 @@ MIN_COMPAT_SCORE = float(os.environ.get("TPT_MIN_COMPAT_SCORE", "0.8"))
 def load_manifest(path: Path):
     """Load a DriverManifest from a TOML file."""
     from tpt_drivers.registry import DriverRegistry
-    registry = DriverRegistry(registry_dir=Path("/tmp/tpt-cert-registry"))
+    registry = DriverRegistry(registry_dir=Path(tempfile.gettempdir()) / "tpt-cert-registry")
     # Use the registry's TOML parser since the manifest isn't installed yet
     manifest = registry._load_manifest(path)
     return manifest

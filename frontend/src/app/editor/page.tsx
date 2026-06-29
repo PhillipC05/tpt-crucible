@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useCallback, useRef, useState } from "react";
+import { useToast } from "@/components/Toast";
 
 const IrGraphEditor = dynamic(
   () => import("@/components/IrGraphEditor").then((mod) => mod.IrGraphEditor),
@@ -14,6 +15,7 @@ const TelemetryReplay = dynamic(
 );
 
 export default function EditorPage() {
+  const { toast } = useToast();
   const [selectedNode, setSelectedNode] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   const [statusMsg, setStatusMsg] = useState("");
@@ -59,9 +61,16 @@ export default function EditorPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(graph),
       });
-      setStatusMsg(res.ok ? "Saved" : `Error: ${res.statusText}`);
+      if (res.ok) {
+        setStatusMsg("Saved");
+        toast("Graph saved", "success");
+      } else {
+        setStatusMsg(`Error: ${res.statusText}`);
+        toast(`Save failed: ${res.statusText}`, "error");
+      }
     } catch {
       setStatusMsg("Save failed — backend unreachable");
+      toast("Backend unreachable — changes not saved", "error");
     } finally {
       setSaving(false);
       setTimeout(() => setStatusMsg(""), 3000);
