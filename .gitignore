@@ -34,3 +34,6 @@ firmware/
 *.tptlog
 *.spice
 *.bit
+
+# TPT Code Command Center — contains API keys and session token
+.vscode/settings.json

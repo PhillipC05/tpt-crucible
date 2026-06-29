@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"runtime"
 	"strconv"
 	"time"
 
@@ -20,6 +21,7 @@ func main() {
 	http.HandleFunc("/api/health", healthHandler)
 	http.HandleFunc("/api/telemetry", telemetryHandler)
 	http.HandleFunc("/api/telemetry/tps", tpsHandler)
+	http.HandleFunc("/api/spark/status", sparkStatusHandler)
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -54,6 +56,43 @@ func tpsHandler(w http.ResponseWriter, r *http.Request) {
 		tpsData = []telemetry.TokensPerSecond{}
 	}
 	json.NewEncoder(w).Encode(tpsData)
+}
+
+func sparkStatusHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	detected := false
+	socketPath := ""
+
+	switch runtime.GOOS {
+	case "windows":
+		socketPath = `\\.\pipe\tpt-spark`
+		if _, err := os.Stat(socketPath); err == nil {
+			detected = true
+		}
+	case "darwin":
+		socketPath = "/tmp/tpt-spark.sock"
+		if info, err := os.Stat(socketPath); err == nil && !info.IsDir() {
+			detected = true
+		}
+	default: // linux
+		if xdg := os.Getenv("XDG_RUNTIME_DIR"); xdg != "" {
+			socketPath = xdg + "/tpt-spark.sock"
+		} else {
+			socketPath = "/tmp/tpt-spark.sock"
+		}
+		if info, err := os.Stat(socketPath); err == nil && !info.IsDir() {
+			detected = true
+		}
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"detected":    detected,
+		"socket_path": socketPath,
+		"platform":    runtime.GOOS,
+		"install_url": "https://github.com/PhillipC05/tpt-spark",
+	})
 }
 
 func init() {

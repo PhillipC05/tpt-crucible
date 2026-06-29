@@ -13,7 +13,15 @@ const SettingsSchema = z.object({
 
 type Settings = z.infer<typeof SettingsSchema>;
 
+interface SparkStatus {
+  detected: boolean;
+  socket_path: string;
+  platform: string;
+  install_url: string;
+}
+
 const STORAGE_KEY = "tpt_settings";
+const OBSERVER_API = process.env.NEXT_PUBLIC_OBSERVER_URL ?? "http://localhost:8080";
 
 function loadSettings(): Settings {
   if (typeof window === "undefined") return SettingsSchema.parse({});
@@ -34,9 +42,25 @@ function saveSettings(s: Settings) {
 export default function SettingsPage() {
   const [settings, setSettings] = useState<Settings>(SettingsSchema.parse({}));
   const [saved, setSaved] = useState(false);
+  const [spark, setSpark] = useState<SparkStatus | null>(null);
+  const [sparkLoading, setSparkLoading] = useState(true);
 
   useEffect(() => {
-    setSettings(loadSettings());
+    const loaded = loadSettings();
+    setSettings(loaded);
+
+    // Probe Observer for Spark presence
+    fetch(`${OBSERVER_API}/api/spark/status`)
+      .then((r) => r.json())
+      .then((data: SparkStatus) => {
+        setSpark(data);
+        // Auto-set Spark as default when detected and no provider has been chosen yet
+        if (data.detected && loaded.llmProvider === "none") {
+          setSettings((s) => ({ ...s, llmProvider: "spark" }));
+        }
+      })
+      .catch(() => setSpark(null))
+      .finally(() => setSparkLoading(false));
   }, []);
 
   function update<K extends keyof Settings>(key: K, value: Settings[K]) {
@@ -52,6 +76,8 @@ export default function SettingsPage() {
     setTimeout(() => setSaved(false), 2500);
   }
 
+  const sparkDetected = spark?.detected === true;
+
   return (
     <div className="min-h-screen bg-bg-primary grid-bg p-6">
       <div className="max-w-2xl mx-auto space-y-6">
@@ -60,11 +86,51 @@ export default function SettingsPage() {
           <p className="text-sm text-text-secondary mt-1">Configure LLM provider, carbon region, and other preferences</p>
         </div>
 
+        {/* Spark status banner */}
+        {!sparkLoading && (
+          <div className={`stat-card border ${sparkDetected ? "border-accent-cyan/40" : "border-border"}`}>
+            <div className="flex items-start gap-3">
+              <span className={`mt-0.5 text-lg ${sparkDetected ? "text-accent-cyan" : "text-text-secondary"}`}>
+                {sparkDetected ? "⬡" : "○"}
+              </span>
+              <div className="flex-1 min-w-0">
+                {sparkDetected ? (
+                  <>
+                    <p className="text-sm font-bold text-accent-cyan">TPT Spark detected</p>
+                    <p className="text-xs text-text-secondary mt-0.5">
+                      Running at <span className="font-mono text-text-primary">{spark?.socket_path}</span>.
+                      Spark is set as your default LLM backend — fully offline, no API key required.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm font-bold text-text-primary">TPT Spark not running</p>
+                    <p className="text-xs text-text-secondary mt-0.5">
+                      Install TPT Spark for offline, privacy-preserving AI assistance — no API key needed.{" "}
+                      <a
+                        href={spark?.install_url ?? "https://github.com/PhillipC05/tpt-spark"}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-accent-cyan underline hover:text-accent-cyan/80"
+                      >
+                        Get TPT Spark →
+                      </a>
+                    </p>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="stat-card space-y-4">
           <h3 className="text-sm font-bold text-accent-amber">LLM PROVIDER</h3>
           <p className="text-xs text-text-secondary">
             Used for AI-assisted features: driver generation, RTL assistance, error diagnosis, and NL hardware config.
             Leave as "None" to disable all AI features.
+          </p>
+          <p className="text-xs text-text-secondary">
+            Priority order: <span className="font-mono text-text-primary">TPT Spark → Ollama → OpenRouter → Anthropic API</span>
           </p>
 
           <div>
@@ -75,10 +141,12 @@ export default function SettingsPage() {
               className="w-full bg-bg-tertiary border border-border rounded px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent-cyan"
             >
               <option value="none">None (disable AI features)</option>
-              <option value="anthropic">Anthropic API</option>
-              <option value="openrouter">OpenRouter</option>
+              <option value="spark">
+                TPT Spark (local GGUF via IPC){sparkDetected ? " — detected ✓" : ""}
+              </option>
               <option value="ollama">Ollama (local)</option>
-              <option value="spark">TPT Spark (local GGUF via IPC)</option>
+              <option value="openrouter">OpenRouter</option>
+              <option value="anthropic">Anthropic API</option>
             </select>
           </div>
 
@@ -115,7 +183,7 @@ export default function SettingsPage() {
                 type="text"
                 value={settings.llmModel}
                 onChange={(e) => update("llmModel", e.target.value)}
-                placeholder="claude-sonnet-4-6"
+                placeholder={settings.llmProvider === "spark" ? "(uses loaded model in Spark)" : "claude-sonnet-4-6"}
                 className="w-full bg-bg-tertiary border border-border rounded px-3 py-2 text-sm text-text-primary font-mono focus:outline-none focus:border-accent-cyan"
               />
             </div>
