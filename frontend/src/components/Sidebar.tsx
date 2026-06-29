@@ -91,6 +91,27 @@ export function Sidebar({ selectedTab, onTabChange, connected }: SidebarProps) {
             <span>Job History</span>
           </Link>
           <Link
+            href="/compare"
+            className="w-full flex items-center gap-3 px-3 py-2 rounded text-sm text-text-secondary hover:text-text-primary hover:bg-bg-tertiary transition-colors"
+          >
+            <span className="text-base">⊕</span>
+            <span>Compare Targets</span>
+          </Link>
+          <Link
+            href="/tournament"
+            className="w-full flex items-center gap-3 px-3 py-2 rounded text-sm text-text-secondary hover:text-text-primary hover:bg-bg-tertiary transition-colors"
+          >
+            <span className="text-base">⊛</span>
+            <span>Tournament</span>
+          </Link>
+          <Link
+            href="/provenance"
+            className="w-full flex items-center gap-3 px-3 py-2 rounded text-sm text-text-secondary hover:text-text-primary hover:bg-bg-tertiary transition-colors"
+          >
+            <span className="text-base">⊚</span>
+            <span>Provenance</span>
+          </Link>
+          <Link
             href="/settings"
             className="w-full flex items-center gap-3 px-3 py-2 rounded text-sm text-text-secondary hover:text-text-primary hover:bg-bg-tertiary transition-colors"
           >

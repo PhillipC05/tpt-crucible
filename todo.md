@@ -854,7 +854,7 @@ Batteryless sensors lose power mid-inference. Checkpoint ops in TPT-IR let firmw
 - [x] Toast notification system (`Toast.tsx`) for background operation feedback (OTA, synthesis, flashing)
 - [x] Job history page (`/jobs`) listing past compilations with status badges and re-download links
 - [x] Dark/light mode toggle in `Sidebar.tsx` with `data-theme` attribute and localStorage persistence
-- [x] `/jobs` and `/settings` navigation links added to Sidebar
+- [x] `/jobs`, `/settings`, `/compare`, `/tournament`, and `/provenance` navigation links added to Sidebar
 - [ ] Command palette (`Ctrl+K`) — deferred; depends on `cmdk` package addition
 
 ---
@@ -874,7 +874,7 @@ Batteryless sensors lose power mid-inference. Checkpoint ops in TPT-IR let firmw
 
 - [x] `python/tpt_catalyst/tpt_catalyst/tournament.py` — `TournamentConfig`; `TournamentRunner.run()` sweeps quant × target × synthesis × node_count; `ParetoPoint` dataclass; Pareto front computation; recommended config selection
 - [x] CLI: `tpt-catalyst tournament <model.tptir> --max-latency 50ms --max-power 5W --min-accuracy 0.90`
-- [ ] `frontend/src/app/tournament/` — interactive Pareto scatter UI (pending)
+- [x] `frontend/src/app/tournament/page.tsx` — interactive Pareto scatter; target/quant/synth toggle chips; recommended config banner; "Compile with this config →" link pre-fills cloud form
 - [ ] Persist tournament results to `tournament/results.json` in `.tptpkg`
 
 ### Feature 3 — Telemetry Anomaly Detection + Predictive Maintenance
@@ -904,7 +904,7 @@ Batteryless sensors lose power mid-inference. Checkpoint ops in TPT-IR let firmw
 - [x] `python/tpt_catalyst/tpt_catalyst/provenance.py` — `ProvenanceNode`; `ProvenanceGraph` DAG with `append_step()`, `to_json()`, `from_file()`, `print_tree()`, `diff()`; serialized to `provenance/lineage.json`; `graph_for_model()` factory; `StepType` enum covering all pipeline stages
 - [x] CLI: `tpt-catalyst provenance <model.tptpkg>` — prints lineage tree + diff against another package
 - [ ] Wire `append_step()` calls into ingest, optimize, quantize, pack pipeline stages
-- [ ] `frontend/src/app/provenance/` — interactive DAG view (pending)
+- [x] `frontend/src/app/provenance/page.tsx` — compilation timeline with expandable step cards; step-type color legend; accuracy-delta bar chart; diff mode (added/removed steps highlighted); two-package path inputs
 - [ ] Add `provenance_root` to `PackageManifest` in `crates/tpt-catalyst/src/package.rs`
 
 ### Feature 7 — Federated Learning Orchestration (`python/tpt_fl/`)
