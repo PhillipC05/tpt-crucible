@@ -12,6 +12,9 @@ class HardwareTarget(Enum):
     FUSION = "fusion"
     ALLOY = "alloy"
     ELEMENT = "element"
+    CIM = "cim"
+    NEUROMORPHIC = "neuromorphic"
+    PHOTONIC = "photonic"
 
 
 class Severity(Enum):
@@ -130,6 +133,66 @@ OPERATOR_SUPPORT: dict[HardwareTarget, dict[str, Severity]] = {
         "batchnorm": Severity.WARN,
         "dropout": Severity.FAIL,
         "embedding": Severity.FAIL,
+        "softmax_temperature": Severity.FAIL,
+    },
+    HardwareTarget.CIM: {
+        "matmul": Severity.PASS,
+        "fused_matmul_relu": Severity.PASS,
+        "fused_matmul_gelu": Severity.WARN,
+        "fused_add_relu": Severity.PASS,
+        "relu": Severity.PASS,
+        "gelu": Severity.WARN,
+        "sigmoid": Severity.WARN,
+        "tanh": Severity.WARN,
+        "conv2d": Severity.WARN,
+        "maxpool": Severity.PASS,
+        "avgpool": Severity.PASS,
+        "softmax": Severity.FAIL,
+        "attention": Severity.FAIL,
+        "layernorm": Severity.WARN,
+        "batchnorm": Severity.PASS,
+        "dropout": Severity.PASS,
+        "embedding": Severity.PASS,
+        "softmax_temperature": Severity.FAIL,
+    },
+    HardwareTarget.NEUROMORPHIC: {
+        "matmul": Severity.WARN,
+        "fused_matmul_relu": Severity.FAIL,
+        "fused_matmul_gelu": Severity.FAIL,
+        "fused_add_relu": Severity.FAIL,
+        "relu": Severity.PASS,
+        "gelu": Severity.WARN,
+        "sigmoid": Severity.PASS,
+        "tanh": Severity.PASS,
+        "conv2d": Severity.WARN,
+        "maxpool": Severity.PASS,
+        "avgpool": Severity.PASS,
+        "softmax": Severity.WARN,
+        "attention": Severity.WARN,
+        "layernorm": Severity.WARN,
+        "batchnorm": Severity.WARN,
+        "dropout": Severity.FAIL,
+        "embedding": Severity.PASS,
+        "softmax_temperature": Severity.WARN,
+    },
+    HardwareTarget.PHOTONIC: {
+        "matmul": Severity.PASS,
+        "fused_matmul_relu": Severity.PASS,
+        "fused_matmul_gelu": Severity.WARN,
+        "fused_add_relu": Severity.PASS,
+        "relu": Severity.PASS,
+        "gelu": Severity.WARN,
+        "sigmoid": Severity.WARN,
+        "tanh": Severity.WARN,
+        "conv2d": Severity.WARN,
+        "maxpool": Severity.PASS,
+        "avgpool": Severity.PASS,
+        "softmax": Severity.FAIL,
+        "attention": Severity.FAIL,
+        "layernorm": Severity.WARN,
+        "batchnorm": Severity.PASS,
+        "dropout": Severity.PASS,
+        "embedding": Severity.PASS,
         "softmax_temperature": Severity.FAIL,
     },
 }

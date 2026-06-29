@@ -32,6 +32,14 @@ PLATFORM_IO_BOARDS = {
     ),
 }
 
+# Zephyr RTOS config for RISC-V targets (SiFive HiFive1 Rev B as reference)
+ZEPHYR_RISCV_CONFIG = PlatformIOConfig(
+    board="hifive1-revb",
+    framework="zephyr",
+    platform="sifive",
+    monitor_speed=115200,
+)
+
 
 def generate_platformio_ini(target: FirmwareTarget, project_dir: Path) -> Path:
     """Generate a platformio.ini file for the target platform."""
@@ -47,6 +55,37 @@ build_flags = -DTPT_NODE_ID=${{env.TPT_NODE_ID}}
     ini_path = project_dir / "platformio.ini"
     ini_path.write_text(ini_content)
     return ini_path
+
+
+def generate_zephyr_platformio_ini(project_dir: Path, board: str = "hifive1-revb") -> Path:
+    """Generate a platformio.ini for a Zephyr RTOS RISC-V project."""
+    ini_content = f"""\
+[env:riscv_zephyr]
+platform = sifive
+board = {board}
+framework = zephyr
+monitor_speed = 115200
+build_flags =
+    -DTPT_NODE_ID=${{env.TPT_NODE_ID}}
+    -DCONFIG_MAIN_STACK_SIZE=4096
+"""
+    ini_path = project_dir / "platformio.ini"
+    ini_path.write_text(ini_content)
+    return ini_path
+
+
+def generate_zephyr_cmake(project_dir: Path, node_id: int) -> Path:
+    """Generate CMakeLists.txt for a Zephyr RTOS RISC-V project."""
+    cmake_content = f"""\
+cmake_minimum_required(VERSION 3.20.0)
+find_package(Zephyr REQUIRED HINTS ${{ZEPHYR_BASE}})
+project(tpt_alloy_node_{node_id})
+target_sources(app PRIVATE src/main.c)
+"""
+    cmake_path = project_dir / "CMakeLists.txt"
+    cmake_path.parent.mkdir(parents=True, exist_ok=True)
+    cmake_path.write_text(cmake_content)
+    return cmake_path
 
 
 def generate_flash_script(

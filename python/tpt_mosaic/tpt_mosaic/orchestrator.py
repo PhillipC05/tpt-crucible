@@ -55,6 +55,12 @@ class MosaicOrchestrator:
                     artifacts[target.value] = self._compile_alloy(layers, target_dir)
                 elif target == HardwareTarget.ANALOG:
                     artifacts[target.value] = self._compile_element(layers, target_dir)
+                elif target == HardwareTarget.CIM:
+                    artifacts[target.value] = self._compile_silicon(layers, target_dir)
+                elif target == HardwareTarget.NEUROMORPHIC:
+                    artifacts[target.value] = self._compile_pulse(layers, target_dir)
+                elif target == HardwareTarget.PHOTONIC:
+                    artifacts[target.value] = self._compile_photon(layers, target_dir)
             except Exception as e:
                 errors.append(f"{target.value}: {e}")
 
@@ -92,6 +98,34 @@ class MosaicOrchestrator:
             "layers": [l.to_dict() for l in layers],
         }
         out = output_dir / "element_config.json"
+        out.write_text(str(config_json))
+        return out
+
+    def _compile_silicon(self, layers: list[LayerAssignment], output_dir: Path) -> Path:
+        config_json = {
+            "target": "cim",
+            "layers": [l.to_dict() for l in layers],
+        }
+        out = output_dir / "silicon_config.json"
+        out.write_text(str(config_json))
+        return out
+
+    def _compile_pulse(self, layers: list[LayerAssignment], output_dir: Path) -> Path:
+        config_json = {
+            "target": "neuromorphic",
+            "layers": [l.to_dict() for l in layers],
+        }
+        out = output_dir / "pulse_config.json"
+        out.write_text(str(config_json))
+        return out
+
+    def _compile_photon(self, layers: list[LayerAssignment], output_dir: Path) -> Path:
+        config_json = {
+            "target": "photonic",
+            "layers": [l.to_dict() for l in layers],
+            "experimental": True,
+        }
+        out = output_dir / "photon_config.json"
         out.write_text(str(config_json))
         return out
 

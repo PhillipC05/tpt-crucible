@@ -12,7 +12,7 @@ fn partition_swarm(layer_count: usize, node_count: usize) -> PyResult<String> {
         },
         ..Default::default()
     };
-    let partitions = partition_model(layer_count, &config);
+    let partitions = partition_model(layer_count, &config, None);
     serde_json::to_string_pretty(&partitions)
         .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
 }

@@ -11,6 +11,28 @@ import {
   CompilationTimeline,
 } from "./TelemetryCharts";
 import { PackageManifestViewer } from "./PackageManifest";
+import { BomTab } from "./BomTab";
+import { DiagnosticsHeatmap } from "./DiagnosticsHeatmap";
+import { RegressionBadge } from "./RegressionBadge";
+import { PipelineView } from "./PipelineView";
+import { CostEstimator } from "./CostEstimator";
+import { SparsityHeatmap } from "./SparsityHeatmap";
+import { ReplayOverlay } from "./ReplayOverlay";
+import { ZephyrTargetCard } from "./ZephyrTargetCard";
+import { IntermittentDashboard } from "./IntermittentDashboard";
+import { AlloyTuneReport } from "./AlloyTuneReport";
+import { ErrorPanel } from "./ErrorPanel";
+import { RiscVIsaPanel } from "./RiscVIsaPanel";
+import { PhotonTargetCard } from "./PhotonTargetCard";
+import { OtaHeatmap } from "./OtaHeatmap";
+import { DownloadPanel } from "./DownloadPanel";
+import { QuantizationMap } from "./QuantizationMap";
+import { ModelSwitcher } from "./ModelSwitcher";
+import { PcbVisualizer } from "./PcbVisualizer";
+import { SpeculativeDecodingPanel } from "./SpeculativeDecoding";
+import { CarbonCostPanel } from "./CarbonCost";
+import { AutoDiscoveryPanel } from "./AutoDiscoveryPanel";
+import { PipelineUtilization } from "./PipelineUtilization";
 
 const TopologyVisualizer = dynamic(
   () => import("./TopologyVisualizer").then((mod) => mod.TopologyVisualizer),
@@ -57,11 +79,23 @@ function OverviewDashboard() {
         <CompilationTimeline />
       </div>
 
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <PipelineView />
+        <DiagnosticsHeatmap />
+        <CostEstimator />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <SpeculativeDecodingPanel />
+        <CarbonCostPanel />
+        <PipelineUtilization />
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="stat-card">
           <h3 className="text-sm font-bold text-accent-amber mb-3">HARDWARE STATUS</h3>
           <div className="space-y-2">
-            {["FPGA Core", "Swarm Mesh", "Analog Array"].map((hw) => (
+            {["FPGA Core", "Swarm Mesh", "Analog Array", "CIM Array", "Neuromorphic"].map((hw) => (
               <div key={hw} className="flex justify-between items-center">
                 <span className="text-sm">{hw}</span>
                 <span className="text-xs px-2 py-0.5 rounded bg-accent-green/20 text-accent-green">
@@ -117,6 +151,15 @@ function FusionDashboard() {
           ))}
         </div>
         <p className="text-xs text-text-secondary mt-2">46/64 MAC units active</p>
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <ErrorPanel />
+        <MemoryBandwidthChart />
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <RiscVIsaPanel />
+        <PhotonTargetCard />
+        <ModelSwitcher />
       </div>
     </div>
   );
@@ -179,6 +222,7 @@ function AlloyDashboard() {
         </div>
         <div className="space-y-4">
           <LatencyHeatmap />
+          <AutoDiscoveryPanel discovered topologyType={topologyType} nodeCount={nodeCount} />
           <div className="stat-card">
             <h3 className="text-sm font-bold text-accent-amber mb-3">SWARM STATS</h3>
             <div className="space-y-2 text-xs">
@@ -206,6 +250,10 @@ function AlloyDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <TokensPerSecondChart />
         <MemoryBandwidthChart />
+        <AlloyTuneReport />
+        <IntermittentDashboard />
+        <OtaHeatmap />
+        <ZephyrTargetCard />
       </div>
     </div>
   );
@@ -224,23 +272,26 @@ function ElementDashboard() {
         <ThermalDriftChart />
         <PowerChart />
       </div>
-      <div className="stat-card">
-        <h3 className="text-sm font-bold text-accent-amber mb-3">THERMAL MAP</h3>
-        <div className="grid grid-cols-8 gap-1">
-          {Array.from({ length: 32 }).map((_, i) => {
-            const temp = 25 + Math.random() * 10;
-            const hue = Math.max(0, 120 - (temp - 25) * 8);
-            return (
-              <div
-                key={i}
-                className="aspect-square rounded-sm"
-                style={{ backgroundColor: `hsl(${hue}, 70%, 50%)` }}
-                title={`Node ${i}: ${temp.toFixed(1)}°C`}
-              />
-            );
-          })}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="stat-card">
+          <h3 className="text-sm font-bold text-accent-amber mb-3">THERMAL MAP</h3>
+          <div className="grid grid-cols-8 gap-1">
+            {Array.from({ length: 32 }).map((_, i) => {
+              const temp = 25 + Math.random() * 10;
+              const hue = Math.max(0, 120 - (temp - 25) * 8);
+              return (
+                <div
+                  key={i}
+                  className="aspect-square rounded-sm"
+                  style={{ backgroundColor: `hsl(${hue}, 70%, 50%)` }}
+                  title={`Node ${i}: ${temp.toFixed(1)}°C`}
+                />
+              );
+            })}
+          </div>
+          <p className="text-xs text-text-secondary mt-2">All components within tolerance</p>
         </div>
-        <p className="text-xs text-text-secondary mt-2">All components within tolerance</p>
+        <PcbVisualizer />
       </div>
     </div>
   );
@@ -259,18 +310,20 @@ function PackageDashboard() {
               { name: "Alloy (Swarm)", status: "complete", progress: 100 },
               { name: "Fusion (FPGA)", status: "complete", progress: 100 },
               { name: "Element (Analog)", status: "in_progress", progress: 67 },
+              { name: "Silicon (CIM)", status: "pending", progress: 0 },
+              { name: "Pulse (Neuro)", status: "pending", progress: 0 },
             ].map((item) => (
               <div key={item.name}>
                 <div className="flex justify-between text-sm mb-1">
                   <span>{item.name}</span>
-                  <span className={item.status === "complete" ? "text-accent-green" : "text-accent-amber"}>
+                  <span className={item.status === "complete" ? "text-accent-green" : item.status === "in_progress" ? "text-accent-amber" : "text-text-secondary"}>
                     {item.progress}%
                   </span>
                 </div>
                 <div className="h-1.5 bg-bg-tertiary rounded-full overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all ${
-                      item.status === "complete" ? "bg-accent-green" : "bg-accent-amber"
+                      item.status === "complete" ? "bg-accent-green" : item.status === "in_progress" ? "bg-accent-amber" : "bg-bg-tertiary"
                     }`}
                     style={{ width: `${item.progress}%` }}
                   />
@@ -278,7 +331,17 @@ function PackageDashboard() {
               </div>
             ))}
           </div>
+          <div className="mt-4">
+            <RegressionBadge baseline={0.85} current={0.87} />
+            <span className="text-xs text-text-secondary ml-2">vs. previous build</span>
+          </div>
         </div>
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <BomTab />
+        <SparsityHeatmap />
+        <QuantizationMap />
+        <DownloadPanel />
       </div>
     </div>
   );

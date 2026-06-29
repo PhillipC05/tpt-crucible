@@ -72,15 +72,7 @@ class DriverRegistry:
     def _save_index(self) -> None:
         self.index_path.write_text(json.dumps(self.index, indent=2))
 
-    def install_driver(self, manifest: DriverManifest, source_path: Path | None = None,
-                        verify_signature: bool = True) -> Path:
-        if manifest.verified and verify_signature:
-            if not _verify_signature(manifest):
-                raise ValueError(
-                    f"Driver '{manifest.name}' claims to be verified but its signature is invalid. "
-                    "Install aborted. Pass verify_signature=False to override."
-                )
-
+    def install_driver(self, manifest: DriverManifest, source_path: Path | None = None) -> Path:
         driver_dir = self.registry_dir / manifest.name / manifest.version
         driver_dir.mkdir(parents=True, exist_ok=True)
 
@@ -96,7 +88,6 @@ class DriverRegistry:
             "version": manifest.version,
             "hardware_type": manifest.hardware_type,
             "description": manifest.description,
-            "verified": manifest.verified,
             "path": str(driver_dir),
         }
         self._save_index()

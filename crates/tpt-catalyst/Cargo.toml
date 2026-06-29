@@ -8,6 +8,7 @@ description = "TPT Catalyst — Core IR compiler for AI model ingestion"
 [features]
 default = []
 mlir = ["dep:melior"]
+wasm = ["dep:wasm-bindgen", "dep:serde-wasm-bindgen", "dep:js-sys"]
 
 [dependencies]
 serde.workspace = true
@@ -17,3 +18,9 @@ thiserror.workspace = true
 tracing.workspace = true
 sha2.workspace = true
 melior = { workspace = true, optional = true }
+wasm-bindgen = { version = "0.2", optional = true }
+serde-wasm-bindgen = { version = "0.6", optional = true }
+js-sys = { version = "0.3", optional = true }
+
+[lib]
+crate-type = ["cdylib", "rlib"]

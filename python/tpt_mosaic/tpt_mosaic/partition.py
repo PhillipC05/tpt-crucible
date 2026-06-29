@@ -10,6 +10,9 @@ class HardwareTarget(Enum):
     FPGA = "fpga"
     SWARM = "swarm"
     ANALOG = "analog"
+    CIM = "cim"
+    NEUROMORPHIC = "neuromorphic"
+    PHOTONIC = "photonic"
 
 
 @dataclass

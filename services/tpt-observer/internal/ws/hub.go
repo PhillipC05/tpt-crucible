@@ -131,6 +131,18 @@ func BroadcastTelemetry(msg telemetry.TelemetryMessage) {
 	_ = data
 }
 
+// StreamingPreFlight sends pre-flight results as a stream
+func (h *Hub) StreamPreFlight(results []map[string]interface{}) {
+	for _, result := range results {
+		msg := map[string]interface{}{
+			"type":    "preflight",
+			"payload": result,
+		}
+		data, _ := json.Marshal(msg)
+		h.broadcast <- data
+	}
+}
+
 func (s *TelemetryStore) RecordTPS(tps telemetry.TokensPerSecond) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

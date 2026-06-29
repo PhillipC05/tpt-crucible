@@ -3,6 +3,7 @@
 from __future__ import annotations
 import subprocess
 import shutil
+import numpy as np
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -125,7 +126,29 @@ TOOL_CHECKS = [
         "target": "observer",
         "install": "Install Node.js: https://nodejs.org",
     },
+    {
+        "name": "docker",
+        "cmd": ["docker", "--version"],
+        "target": "all",
+        "install": "Install Docker: https://docs.docker.com/get-docker/",
+    },
 ]
+
+
+def detect_docker_toolchain() -> dict[str, bool]:
+    """Detect if tools are available via Docker."""
+    docker_tools = {}
+    for tool_def in TOOL_CHECKS:
+        if tool_def["name"] in ("yosys", "nextpnr-xilinx", "verilator"):
+            try:
+                result = subprocess.run(
+                    ["docker", "run", "--rm", "tpt-crucible/synthesis", tool_def["cmd"][0], "--version"],
+                    capture_output=True, text=True, timeout=30,
+                )
+                docker_tools[tool_def["name"]] = result.returncode == 0
+            except Exception:
+                docker_tools[tool_def["name"]] = False
+    return docker_tools
 
 
 def check_tool(tool_def: dict[str, Any]) -> ToolStatus:
@@ -155,6 +178,52 @@ def check_tool(tool_def: dict[str, Any]) -> ToolStatus:
             name=name, installed=True, path=path,
             status="ok", version="unknown",
         )
+
+
+def run_smoke_test(target: str = "alloy") -> dict[str, Any]:
+    """Run a minimal 2-layer model through each available hardware path."""
+    results = {}
+    from .ir import TptIr, OpNode, ComputationalGraph, ModelMetadata
+    ir = TptIr(
+        version="1.0.0",
+        metadata=ModelMetadata(name="smoke_test", source_format="test"),
+        graph=ComputationalGraph(
+            nodes=[
+                OpNode(id=0, op_type="matmul", name="layer0"),
+                OpNode(id=1, op_type="relu", name="act0"),
+            ],
+        ),
+    )
+
+    if target in ("alloy", "all"):
+        try:
+            from tpt_alloy.partition import partition_model, PartitionConfig, Topology
+            config = PartitionConfig(topology=Topology.grid2d(2, 2))
+            partitions = partition_model(2, config)
+            results["alloy"] = {"status": "ok", "partitions": len(partitions)}
+        except Exception as e:
+            results["alloy"] = {"status": "error", "message": str(e)}
+
+    if target in ("fusion", "all"):
+        try:
+            from tpt_fusion.mac_array import MacArray, MacConfig
+            mac = MacArray(MacConfig(rows=4, cols=4))
+            verilog = mac.generate_verilog()
+            results["fusion"] = {"status": "ok", "verilog_length": len(verilog)}
+        except Exception as e:
+            results["fusion"] = {"status": "error", "message": str(e)}
+
+    if target in ("element", "all"):
+        try:
+            from tpt_element.weight_map import WeightMapper
+            mapper = WeightMapper()
+            weights = np.random.randn(4, 4) * 0.1
+            components = mapper.map_weights(weights)
+            results["element"] = {"status": "ok", "components": len(components)}
+        except Exception as e:
+            results["element"] = {"status": "error", "message": str(e)}
+
+    return results
 
 
 def run_doctor(target: str | None = None) -> DoctorReport:

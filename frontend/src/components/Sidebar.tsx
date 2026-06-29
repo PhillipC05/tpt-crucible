@@ -49,15 +49,22 @@ export function Sidebar({ selectedTab, onTabChange, connected }: SidebarProps) {
             href="/topology"
             className="w-full flex items-center gap-3 px-3 py-2 rounded text-sm text-text-secondary hover:text-text-primary hover:bg-bg-tertiary transition-colors"
           >
-            <span className="text-base">⊛</span>
+            <span className="text-base">\u29bb</span>
             <span>3D Topology</span>
           </Link>
           <Link
             href="/editor"
             className="w-full flex items-center gap-3 px-3 py-2 rounded text-sm text-text-secondary hover:text-text-primary hover:bg-bg-tertiary transition-colors"
           >
-            <span className="text-base">◇</span>
+            <span className="text-base">\u25c7</span>
             <span>IR Graph Editor</span>
+          </Link>
+          <Link
+            href="/cloud"
+            className="w-full flex items-center gap-3 px-3 py-2 rounded text-sm text-text-secondary hover:text-text-primary hover:bg-bg-tertiary transition-colors"
+          >
+            <span className="text-base">\u2601</span>
+            <span>Cloud</span>
           </Link>
         </div>
       </nav>

@@ -135,6 +135,17 @@ export function IrGraphEditor({
   onNodeSelect?: (node: IrNode | null) => void;
 }) {
   const [selectedNode, setSelectedNode] = useState<IrNode | null>(null);
+  const [showContextMenu, setShowContextMenu] = useState(false);
+  const [contextMenuPos, setContextMenuPos] = useState({ x: 0, y: 0 });
+  const [showQuantDialog, setShowQuantDialog] = useState(false);
+  const [quantBits, setQuantBits] = useState(8);
+
+  const substitutionMap: Record<string, string[]> = {
+    attention: ["mha", "flash_attention"],
+    softmax: ["approx_softmax", "lookup_softmax"],
+    gelu: ["sigmoid_gelu", "polynomial_gelu"],
+    layernorm: ["rmsnorm", "batchnorm"],
+  };
 
   const { initialNodes, initialEdges } = useMemo(() => {
     const nodeWidth = 160;
@@ -243,6 +254,75 @@ export function IrGraphEditor({
                 </span>
               </div>
             )}
+            <div className="pt-2 border-t border-border space-y-1">
+              {substitutionMap[selectedNode.op_type] && (
+                <div>
+                  <div className="text-text-secondary mb-1">Substitutions:</div>
+                  {substitutionMap[selectedNode.op_type].map((sub) => (
+                    <button
+                      key={sub}
+                      className="w-full text-left px-2 py-1 rounded bg-bg-tertiary hover:bg-accent-cyan/20 text-[10px] hover:text-accent-cyan"
+                      onClick={() => {
+                        setNodes((nds) =>
+                          nds.map((n) =>
+                            n.id === selectedNode.id
+                              ? { ...n, data: { ...n.data, op_type: sub } }
+                              : n
+                          )
+                        );
+                      }}
+                    >
+                      {sub}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <button
+                className="w-full text-left px-2 py-1 rounded bg-bg-tertiary hover:bg-accent-amber/20 text-[10px] hover:text-accent-amber"
+                onClick={() => setShowQuantDialog(true)}
+              >
+                Set quantization
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showQuantDialog && selectedNode && (
+        <div className="absolute top-4 right-64 z-20 stat-card w-48">
+          <h4 className="text-xs font-bold text-accent-amber mb-2">QUANTIZATION</h4>
+          <div className="space-y-2">
+            <div className="flex gap-1">
+              {[4, 8, 16, 32].map((bits) => (
+                <button
+                  key={bits}
+                  onClick={() => {
+                    setQuantBits(bits);
+                    setNodes((nds) =>
+                      nds.map((n) =>
+                        n.id === selectedNode.id
+                          ? { ...n, data: { ...n.data, quant_bits: bits } }
+                          : n
+                      )
+                    );
+                    setShowQuantDialog(false);
+                  }}
+                  className={`px-2 py-1 rounded text-[10px] ${
+                    quantBits === bits
+                      ? "bg-accent-cyan/20 text-accent-cyan border border-accent-cyan/50"
+                      : "bg-bg-tertiary text-text-secondary border border-border"
+                  }`}
+                >
+                  {bits}-bit
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setShowQuantDialog(false)}
+              className="w-full px-2 py-1 rounded bg-bg-tertiary text-text-secondary text-[10px]"
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}

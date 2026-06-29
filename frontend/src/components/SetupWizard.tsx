@@ -9,6 +9,37 @@ interface WizardState {
   hardwareTarget: string;
   quantize: boolean;
   autoFlash: boolean;
+  doctorResults: DoctorResult | null;
+}
+
+interface DoctorResult {
+  readiness_score: number;
+  overall_status: string;
+  tools: { name: string; status: string; version: string }[];
+}
+
+const STORAGE_KEY = "tpt-crucible-wizard-state";
+
+function loadWizardState(): Partial<WizardState> | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    return saved ? JSON.parse(saved) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveWizardState(state: WizardState) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch {}
+}
+
+function clearWizardState() {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(STORAGE_KEY);
 }
 
 const steps = [
@@ -20,18 +51,23 @@ const steps = [
 ];
 
 export function SetupWizard({ onComplete }: { onComplete?: () => void }) {
+  const saved = loadWizardState();
   const [state, setState] = useState<WizardState>({
-    step: 1,
-    modelPath: "",
-    modelName: "",
-    hardwareTarget: "alloy",
-    quantize: true,
-    autoFlash: false,
+    step: saved?.step ?? 1,
+    modelPath: saved?.modelPath ?? "",
+    modelName: saved?.modelName ?? "",
+    hardwareTarget: saved?.hardwareTarget ?? "alloy",
+    quantize: saved?.quantize ?? true,
+    autoFlash: saved?.autoFlash ?? false,
+    doctorResults: saved?.doctorResults ?? null,
   });
 
   const [preflightResults, setPreflightResults] = useState<any>(null);
 
   const handleNext = () => {
+    if (state.step === 1 && !state.doctorResults) {
+      setDoctorResultsAsync();
+    }
     if (state.step === 2) {
       setPreflightResults({
         alloy: { score: 0.95, passes: 42, warnings: 2, failures: 0 },
@@ -40,15 +76,45 @@ export function SetupWizard({ onComplete }: { onComplete?: () => void }) {
       });
     }
     if (state.step < 5) {
-      setState((p) => ({ ...p, step: p.step + 1 }));
+      const next = { ...state, step: state.step + 1 };
+      setState(next);
+      saveWizardState(next);
     } else {
+      clearWizardState();
       onComplete?.();
     }
   };
 
   const handleBack = () => {
     if (state.step > 1) {
-      setState((p) => ({ ...p, step: p.step - 1 }));
+      const prev = { ...state, step: state.step - 1 };
+      setState(prev);
+      saveWizardState(prev);
+    }
+  };
+
+  const setDoctorResultsAsync = async () => {
+    try {
+      const res = await fetch("/api/doctor");
+      if (res.ok) {
+        const data = await res.json();
+        const next = { ...state, doctorResults: data };
+        setState(next);
+        saveWizardState(next);
+      }
+    } catch {
+      const fallback: DoctorResult = {
+        readiness_score: 0.5,
+        overall_status: "partial",
+        tools: [
+          { name: "Yosys", status: "missing", version: "" },
+          { name: "Nextpnr", status: "missing", version: "" },
+          { name: "PlatformIO", status: "missing", version: "" },
+        ],
+      };
+      const next = { ...state, doctorResults: fallback };
+      setState(next);
+      saveWizardState(next);
     }
   };
 
@@ -101,6 +167,43 @@ export function SetupWizard({ onComplete }: { onComplete?: () => void }) {
                 value={state.modelPath}
                 onChange={(e) => setState((p) => ({ ...p, modelPath: e.target.value }))}
               />
+              {state.doctorResults && (
+                <div className="stat-card mt-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-accent-cyan">TOOLCHAIN STATUS</span>
+                    <span className={`text-xs px-2 py-0.5 rounded ${
+                      state.doctorResults.overall_status === "ready" ? "bg-accent-green/20 text-accent-green" :
+                      state.doctorResults.overall_status === "partial" ? "bg-accent-amber/20 text-accent-amber" :
+                      "bg-accent-red/20 text-accent-red"
+                    }`}>
+                      {state.doctorResults.overall_status === "ready" ? "READY" :
+                       state.doctorResults.overall_status === "partial" ? "PARTIAL" : "NOT READY"}
+                    </span>
+                  </div>
+                  <div className="text-[10px] text-text-secondary mb-2">
+                    Readiness: {(state.doctorResults.readiness_score * 100).toFixed(0)}%
+                  </div>
+                  <div className="space-y-1">
+                    {state.doctorResults.tools.map((tool) => (
+                      <div key={tool.name} className="flex items-center justify-between text-[10px]">
+                        <span className="text-text-primary">{tool.name}</span>
+                        <span className={`${
+                          tool.status === "ok" ? "text-accent-green" :
+                          tool.status === "wrong_version" ? "text-accent-amber" : "text-accent-red"
+                        }`}>
+                          {tool.status === "ok" ? tool.version || "installed" :
+                           tool.status === "wrong_version" ? `${tool.version} (wrong)` : "missing"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  {state.doctorResults.overall_status !== "ready" && (
+                    <div className="mt-2 text-[10px] text-text-secondary">
+                      Run <code className="text-accent-cyan">tpt-doctor</code> for install instructions. SiL emulation is always available.
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -160,6 +263,18 @@ export function SetupWizard({ onComplete }: { onComplete?: () => void }) {
                 <input type="checkbox" checked={state.quantize} onChange={(e) => setState((p) => ({ ...p, quantize: e.target.checked }))} className="accent-accent-cyan" />
                 Auto-quantize for target hardware
               </label>
+              {state.doctorResults && state.doctorResults.overall_status === "not_ready" && (
+                <div className="p-3 rounded bg-accent-cyan/5 border border-accent-cyan/20 text-xs text-text-secondary">
+                  <div className="font-bold text-accent-cyan mb-1">No hardware toolchain detected</div>
+                  <div className="mb-2">We recommend starting with an ESP32 swarm + SiL emulation — no hardware needed to get started.</div>
+                  <button
+                    onClick={() => setState((p) => ({ ...p, hardwareTarget: "alloy" }))}
+                    className="text-accent-cyan underline"
+                  >
+                    Select Swarm + SiL
+                  </button>
+                </div>
+              )}
             </div>
           )}
 

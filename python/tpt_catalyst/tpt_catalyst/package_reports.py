@@ -1,4 +1,4 @@
-"""Write pre-flight, quantization, and partition reports into .tptpkg structure."""
+"""Package report writers — preflight, quantization, and partition reports."""
 
 from __future__ import annotations
 import json
@@ -44,3 +44,47 @@ def write_mosaic_partition(plan_data: dict[str, Any], pkg_dir: Path) -> Path:
     partition_path = mosaic_dir / "partition.json"
     partition_path.write_text(json.dumps(plan_data, indent=2))
     return partition_path
+
+
+def write_tptpkg_manifest(
+    model_name: str,
+    source_sha256: str,
+    targets: list[str],
+    pkg_dir: Path,
+    preflight: CompatibilityReport | None = None,
+    quant_profile: QuantizationProfile | None = None,
+    mosaic_plan: dict[str, Any] | None = None,
+    hardware_lock: dict[str, Any] | None = None,
+) -> Path:
+    """Write complete .tptpkg manifest with all reports."""
+    pkg_dir.mkdir(parents=True, exist_ok=True)
+
+    manifest = {
+        "format_version": "1.0.0",
+        "model_name": model_name,
+        "source_sha256": source_sha256,
+        "targets": targets,
+    }
+
+    if preflight:
+        write_preflight_report(preflight, pkg_dir)
+        manifest["preflight"] = preflight.to_dict()
+
+    if quant_profile:
+        write_quant_profile(quant_profile, pkg_dir)
+        manifest["quant_profile"] = {
+            "name": quant_profile.name,
+            "target": quant_profile.target.value,
+            "weight_bits": quant_profile.weight_bits,
+        }
+
+    if mosaic_plan:
+        write_mosaic_partition(mosaic_plan, pkg_dir)
+        manifest["mosaic_partition"] = mosaic_plan
+
+    if hardware_lock:
+        manifest["hardware_lock"] = hardware_lock
+
+    manifest_path = pkg_dir / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest, indent=2))
+    return manifest_path

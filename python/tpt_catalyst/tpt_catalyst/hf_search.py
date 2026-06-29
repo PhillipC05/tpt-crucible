@@ -136,3 +136,44 @@ class HuggingFaceSearch:
 
     def get_popular(self, limit: int = 5) -> list[HfModel]:
         return self.search("GGUF LLM", limit=limit)
+
+    def download_model(
+        self,
+        model_id: str,
+        target_dir: Path | None = None,
+        filename: str | None = None,
+    ) -> dict[str, Any]:
+        """Download a model from HuggingFace to local cache.
+
+        Returns a dict with status, local path, and size info.
+        """
+        dest = target_dir or self.cache_dir / "models" / model_id.replace("/", "_")
+        dest.mkdir(parents=True, exist_ok=True)
+
+        try:
+            from huggingface_hub import hf_hub_download
+            path = hf_hub_download(
+                repo_id=model_id,
+                filename=filename,
+                local_dir=str(dest),
+            )
+            import os
+            size_mb = os.path.getsize(path) / (1024 * 1024)
+            return {
+                "status": "success",
+                "local_path": path,
+                "model_id": model_id,
+                "size_mb": round(size_mb, 2),
+            }
+        except ImportError:
+            return {
+                "status": "error",
+                "message": "huggingface_hub not installed. Run: pip install huggingface_hub",
+                "model_id": model_id,
+            }
+        except Exception as e:
+            return {
+                "status": "error",
+                "message": str(e),
+                "model_id": model_id,
+            }

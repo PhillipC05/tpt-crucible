@@ -17,6 +17,17 @@ pub enum PackageError {
     MissingField(String),
 }
 
+/// Carbon footprint estimate embedded in a package manifest.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct CarbonProfile {
+    pub target: String,
+    pub power_watts: f64,
+    pub inference_time_s: f64,
+    pub energy_wh: f64,
+    pub carbon_gco2: f64,
+    pub region: String,
+}
+
 /// Top-level manifest for a `.tptpkg` file.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PackageManifest {
@@ -27,6 +38,10 @@ pub struct PackageManifest {
     pub preflight: Option<PreflightReport>,
     pub quant_profile: Option<QuantProfile>,
     pub mosaic_partition: Option<MosaicPartition>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hardware_lock: Option<crate::ip_lock::HardwareLock>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub carbon_profile: Option<CarbonProfile>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -89,6 +104,8 @@ impl PackageManifest {
             preflight: None,
             quant_profile: None,
             mosaic_partition: None,
+            hardware_lock: None,
+            carbon_profile: None,
         }
     }
 
@@ -238,6 +255,41 @@ mod tests {
         let json = manifest.to_json().unwrap();
         let restored = PackageManifest::from_json(&json).unwrap();
         assert_eq!(manifest, restored);
+    }
+
+    #[test]
+    fn test_manifest_with_lock() {
+        let mut manifest = PackageManifest::new("test_model".into(), "abc123".into());
+        manifest.hardware_lock = Some(crate::ip_lock::HardwareLock {
+            fingerprint_sha256: "deadbeef".into(),
+            lock_type: "hardware_bound".into(),
+            locked_at: 0.0,
+            issuer: "tpt-crucible".into(),
+            allowed_ids: vec!["hw-001".into()],
+        });
+
+        let json = manifest.to_json().unwrap();
+        assert!(json.contains("hardware_lock"));
+        let restored = PackageManifest::from_json(&json).unwrap();
+        assert!(restored.hardware_lock.is_some());
+    }
+
+    #[test]
+    fn test_manifest_with_carbon() {
+        let mut manifest = PackageManifest::new("test_model".into(), "abc123".into());
+        manifest.carbon_profile = Some(CarbonProfile {
+            target: "fusion".into(),
+            power_watts: 100.0,
+            inference_time_s: 1.0,
+            energy_wh: 0.0278,
+            carbon_gco2: 0.013,
+            region: "eu-fr".into(),
+        });
+
+        let json = manifest.to_json().unwrap();
+        assert!(json.contains("carbon_profile"));
+        let restored = PackageManifest::from_json(&json).unwrap();
+        assert!(restored.carbon_profile.is_some());
     }
 
     #[test]

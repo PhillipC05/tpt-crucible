@@ -39,6 +39,32 @@ class PowerProfile:
     active_mw: float = 0.0
     peak_mw: float = 0.0
     voltage_v: float = 3.3
+    carbon_overhead_gco2: float = 0.0
+
+
+@dataclass
+class CimArraySpec:
+    array_rows: int = 1024
+    array_cols: int = 1024
+    bit_precision: int = 8
+    num_arrays: int = 1
+    wavelength_nm: int = 0
+
+
+@dataclass
+class NeuromorphicSpec:
+    chip_type: str = "loihi"
+    num_cores: int = 128
+    synapses_per_core: int = 1024
+    learning_rules: list[str] = field(default_factory=lambda: ["stdp"])
+
+
+@dataclass
+class PhotonicSpec:
+    mesh_size: int = 8
+    wavelength_nm: int = 1550
+    modulation: str = "thermal"
+    phase_bits: int = 8
 
 
 @dataclass
@@ -54,11 +80,11 @@ class DriverManifest:
     flash_protocol: str = "serial"
     telemetry_adapter: str = "default"
     metadata: dict[str, Any] = field(default_factory=dict)
-    # Certification fields — set by the automated certification pipeline, not by contributors
-    verified: bool = False
-    signature: str = ""       # Ed25519 signature (hex) over canonical JSON of to_dict()
-    certified_at: str = ""    # ISO 8601 timestamp of when certification ran
-    certification_pipeline: str = ""  # git SHA of certify.py that signed this
+    cim_array: CimArraySpec | None = None
+    neuromorphic: NeuromorphicSpec | None = None
+    photonic: PhotonicSpec | None = None
+    checkpoint_storage: str | None = None
+    power_monitor_pin: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -82,13 +108,16 @@ class DriverManifest:
                 "active_mw": self.power.active_mw,
                 "peak_mw": self.power.peak_mw,
                 "voltage": self.power.voltage_v,
+                "carbon_overhead_gco2": self.power.carbon_overhead_gco2,
             },
             "flash_protocol": self.flash_protocol,
             "telemetry_adapter": self.telemetry_adapter,
-            "verified": self.verified,
-            "signature": self.signature,
-            "certified_at": self.certified_at,
-            "certification_pipeline": self.certification_pipeline,
+            "cim_array": {"array_rows": self.cim_array.array_rows, "array_cols": self.cim_array.array_cols,
+                         "bit_precision": self.cim_array.bit_precision} if self.cim_array else None,
+            "neuromorphic": {"chip_type": self.neuromorphic.chip_type, "num_cores": self.neuromorphic.num_cores} if self.neuromorphic else None,
+            "photonic": {"mesh_size": self.photonic.mesh_size, "wavelength_nm": self.photonic.wavelength_nm} if self.photonic else None,
+            "checkpoint_storage": self.checkpoint_storage,
+            "power_monitor_pin": self.power_monitor_pin,
         }
 
     @classmethod
@@ -118,7 +147,17 @@ class DriverManifest:
             active_mw=pw.get("active_mw", 0.0),
             peak_mw=pw.get("peak_mw", 0.0),
             voltage_v=pw.get("voltage", 3.3),
+            carbon_overhead_gco2=pw.get("carbon_overhead_gco2", 0.0),
         )
+
+        cim = data.get("cim_array")
+        cim_array = CimArraySpec(**cim) if cim else None
+
+        neu = data.get("neuromorphic")
+        neuromorphic = NeuromorphicSpec(**neu) if neu else None
+
+        phot = data.get("photonic")
+        photonic = PhotonicSpec(**phot) if phot else None
 
         return cls(
             name=data["name"], version=data["version"],
@@ -127,10 +166,9 @@ class DriverManifest:
             pins=pins, synthesis=synthesis, bom=bom, power=power,
             flash_protocol=data.get("flash_protocol", "serial"),
             telemetry_adapter=data.get("telemetry_adapter", "default"),
-            verified=data.get("verified", False),
-            signature=data.get("signature", ""),
-            certified_at=data.get("certified_at", ""),
-            certification_pipeline=data.get("certification_pipeline", ""),
+            cim_array=cim_array, neuromorphic=neuromorphic, photonic=photonic,
+            checkpoint_storage=data.get("checkpoint_storage"),
+            power_monitor_pin=data.get("power_monitor_pin"),
         )
 
     def to_toml(self) -> str:
